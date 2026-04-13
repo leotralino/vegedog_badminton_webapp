@@ -61,7 +61,7 @@ export default function ProfilePage() {
             venmo_username: venmoUsername.trim() || null,
             avatar_url:     user.user_metadata?.avatar_url || null,
             updated_at:     new Date().toISOString(),
-        } as any)
+        })
 
       if (dbErr) throw dbErr
       setSuccess('Profile saved!')
