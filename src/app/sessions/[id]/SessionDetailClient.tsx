@@ -1,0 +1,562 @@
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { formatSessionDate } from '@/lib/dates'
+import type {
+  SessionWithInitiator, Participant, ParticipantWithProfile,
+  PaymentMethod, PaymentRecord, Profile, PaymentMethodType,
+} from '@/lib/types'
+
+// ── Props ──────────────────────────────────────────────────────────────────
+interface Props {
+  session:             SessionWithInitiator
+  initialParticipants: ParticipantWithProfile[]
+  paymentMethods:      PaymentMethod[]
+  paymentRecords:      PaymentRecord[]
+  currentUser:         { id: string; profile: Profile | null } | null
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+const STATUS_LABEL: Record<string, string> = { open:'招募中', locked:'已锁定', canceled:'已取消' }
+const STATUS_CLASS: Record<string, string> = {
+  open:    'bg-brand-100 text-brand-700',
+  locked:  'bg-blue-100 text-blue-700',
+  canceled:'bg-red-100 text-red-700',
+}
+const PAY_CLASS: Record<string, string> = {
+  paid:   'bg-green-100 text-green-700',
+  unpaid: 'bg-red-100 text-red-700',
+  waived: 'bg-orange-100 text-orange-700',
+}
+const PAY_LABEL: Record<string, string> = { paid:'Paid ✓', unpaid:'Unpaid', waived:'Waived' }
+
+function venmoUrl(accountRef: string, amount?: number | null): string {
+  const username = accountRef.startsWith('@') ? accountRef.slice(1) : accountRef
+  const params = new URLSearchParams({
+    txn: 'pay',
+    recipients: username,
+    note: 'Badminton',
+    ...(amount ? { amount: amount.toFixed(2) } : {}),
+  })
+  return `venmo://paycharge?${params}`
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+export default function SessionDetailClient({
+  session,
+  initialParticipants,
+  paymentMethods: initialMethods,
+  paymentRecords,
+  currentUser,
+}: Props) {
+  const supabase = createClient()
+  const router   = useRouter()
+
+  const [participants, setParticipants]   = useState(initialParticipants)
+  const [paymentMethods, setPaymentMethods] = useState(initialMethods)
+  const [joinName, setJoinName]           = useState('')
+  const [joining, setJoining]             = useState(false)
+  const [locking, setLocking]             = useState(false)
+  const [toast, setToast]                 = useState<{ msg: string; ok: boolean } | null>(null)
+
+  const isAdmin = currentUser?.id === session.initiator_id
+
+  // ── Realtime subscription ─────────────────────────────────────────────
+  const refreshParticipants = useCallback(async () => {
+    const { data } = await supabase
+      .from('participants')
+      .select(`*, profile:profiles!user_id(id, nickname, avatar_url)`)
+      .eq('session_id', session.id)
+      .order('queue_position')
+    if (data) setParticipants(data as ParticipantWithProfile[])
+  }, [session.id, supabase])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`session-${session.id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'participants',
+        filter: `session_id=eq.${session.id}`,
+      }, refreshParticipants)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [session.id, supabase, refreshParticipants])
+
+  // ── Default join name ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUser) return
+    const base = currentUser.profile?.nickname ?? 'Player'
+    const mine = participants.filter(p => p.user_id === currentUser.id && (p.status === 'joined' || p.status === 'waitlist'))
+    const allMine = participants.filter(p => p.user_id === currentUser.id)
+    const maxIdx = allMine.reduce((max, p) => {
+      const m = p.display_name.match(/\+(\d+)$/)
+      return m ? Math.max(max, parseInt(m[1])) : Math.max(max, mine.length === 0 ? -1 : 0)
+    }, -1)
+    const nextIdx = maxIdx + 1
+    setJoinName(nextIdx === 0 ? base : `${base} +${nextIdx}`)
+  }, [participants, currentUser])
+
+  // ── Toast helper ──────────────────────────────────────────────────────
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  // ── Join ──────────────────────────────────────────────────────────────
+  async function handleJoin() {
+    if (!currentUser) { router.push(`/login?next=/sessions/${session.id}`); return }
+    setJoining(true)
+    const { error } = await supabase.rpc('join_session', {
+      p_session_id:   session.id,
+      p_user_id:      currentUser.id,
+      p_display_name: joinName.trim() || (currentUser.profile?.nickname ?? 'Player'),
+    })
+    setJoining(false)
+    if (error) showToast(error.message, false)
+    else showToast('Joined! 🎉')
+  }
+
+  // ── Withdraw ──────────────────────────────────────────────────────────
+  async function handleWithdraw(participantId: string) {
+    if (!currentUser) return
+    const { error } = await supabase.rpc('withdraw_participant', {
+      p_participant_id: participantId,
+      p_user_id:        currentUser.id,
+    })
+    if (error) showToast(error.message, false)
+    else showToast('Withdrawn')
+  }
+
+  // ── Lock session ──────────────────────────────────────────────────────
+  async function handleLock() {
+    setLocking(true)
+    const { error } = await supabase
+      .from('sessions')
+      .update({ status: 'locked' })
+      .eq('id', session.id)
+    setLocking(false)
+    if (error) showToast(error.message, false)
+    else { showToast('Session locked 🔒'); router.refresh() }
+  }
+
+  // ── Toggle stayed late ────────────────────────────────────────────────
+  async function handleToggleLate(p: Participant) {
+    const { error } = await supabase
+      .from('participants')
+      .update({ stayed_late: !p.stayed_late })
+      .eq('id', p.id)
+    if (error) showToast(error.message, false)
+  }
+
+  // ── Partition participants ────────────────────────────────────────────
+  const joined    = participants.filter(p => p.status === 'joined')
+  const waitlist  = participants.filter(p => p.status === 'waitlist')
+  const withdrawn = participants.filter(p => p.status === 'withdrawn' || p.status === 'late_withdraw')
+    .sort((a,b) => new Date(b.withdrew_at ?? 0).getTime() - new Date(a.withdrew_at ?? 0).getTime())
+
+  const myActiveEntries = currentUser
+    ? participants.filter(p => p.user_id === currentUser.id && (p.status === 'joined' || p.status === 'waitlist'))
+    : []
+
+  // ── Render ────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-4">
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl
+                        text-white text-sm font-semibold shadow-lg transition-all
+                        ${toast.ok ? 'bg-brand-600' : 'bg-red-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Meta card */}
+      <div className="card space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <h1 className="text-xl font-bold text-gray-900 leading-tight">{session.title}</h1>
+          <span className={`badge shrink-0 ${STATUS_CLASS[session.status]}`}>
+            {STATUS_LABEL[session.status]}
+          </span>
+        </div>
+
+        <div className="space-y-1.5 text-sm text-gray-600">
+          <div className="flex gap-2"><span>📅</span><span>{formatSessionDate(session.starts_at)}</span></div>
+          <div className="flex gap-2"><span>⏰</span>
+            <span>Withdraw by {formatSessionDate(session.withdraw_deadline)}</span>
+          </div>
+          <div className="flex gap-2"><span>📍</span><span>{session.location}</span></div>
+          <div className="flex gap-2"><span>👤</span>
+            <span>by {(session as any).initiator?.nickname ?? '—'}</span>
+          </div>
+          <div className="flex gap-2"><span>🏸</span>
+            <span>{session.court_count} court{session.court_count !== 1 ? 's' : ''} · max {session.max_participants}</span>
+          </div>
+          {session.fee_per_person != null && (
+            <div className="flex gap-2"><span>💵</span>
+              <span>${session.fee_per_person}/person · {session.late_withdraw_ratio * 100}% late penalty</span>
+            </div>
+          )}
+        </div>
+
+        {/* Admin controls */}
+        {isAdmin && session.status === 'open' && (
+          <button onClick={handleLock} disabled={locking}
+            className="w-full mt-2 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold
+                       active:bg-blue-700 disabled:opacity-50 transition-colors">
+            {locking ? 'Locking…' : '🔒 Lock & Finalize Queue'}
+          </button>
+        )}
+
+        {/* Share link */}
+        <ShareButton sessionId={session.id} />
+      </div>
+
+      {/* Join section */}
+      {session.status === 'open' && (
+        <div className="card space-y-3">
+          <h2 className="font-semibold text-gray-900">Join Queue</h2>
+          {currentUser ? (
+            <>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">
+                  Your entry name (edit to add +1, +2 for extra slots)
+                </label>
+                <input className="input" value={joinName} onChange={e => setJoinName(e.target.value)} />
+              </div>
+              <button onClick={handleJoin} disabled={joining} className="btn-primary">
+                {joining ? 'Joining…' : `Join as "${joinName}"`}
+              </button>
+              {myActiveEntries.length > 0 && (
+                <p className="text-xs text-gray-400 text-center">
+                  You have {myActiveEntries.length} active entr{myActiveEntries.length === 1 ? 'y' : 'ies'}.
+                  Tap – next to withdraw one.
+                </p>
+              )}
+            </>
+          ) : (
+            <a href={`/login?next=/sessions/${session.id}`}
+               className="btn-primary text-center block py-3 rounded-xl bg-brand-600 text-white font-semibold">
+              Sign in to Join
+            </a>
+          )}
+        </div>
+      )}
+
+      {session.status === 'locked' && (
+        <div className="text-center text-sm text-gray-400 py-2">
+          🔒 Queue is locked — join/withdraw disabled
+        </div>
+      )}
+
+      {/* Participant list */}
+      <div className="card space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900">
+            Participants ({joined.length}/{session.max_participants})
+          </h2>
+        </div>
+
+        {joined.length === 0 && waitlist.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4 text-center">No one yet — be the first!</p>
+        ) : (
+          <div className="space-y-1">
+            {joined.map((p, i) => (
+              <ParticipantRow key={p.id} p={p} rank={i+1}
+                isAdmin={isAdmin} isLocked={session.status === 'locked'}
+                isOwn={currentUser?.id === p.user_id}
+                payRecord={paymentRecords.find(r => r.participant_id === p.id)}
+                onWithdraw={() => handleWithdraw(p.id)}
+                onToggleLate={() => handleToggleLate(p)} />
+            ))}
+            {waitlist.length > 0 && (
+              <>
+                <div className="text-xs text-brand-600 font-semibold pt-2 pb-1">— Waitlist —</div>
+                {waitlist.map((p, i) => (
+                  <ParticipantRow key={p.id} p={p} rank={joined.length + i + 1}
+                    isAdmin={isAdmin} isLocked={session.status === 'locked'}
+                    isOwn={currentUser?.id === p.user_id}
+                    payRecord={paymentRecords.find(r => r.participant_id === p.id)}
+                    onWithdraw={() => handleWithdraw(p.id)}
+                    onToggleLate={() => handleToggleLate(p)} />
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Withdrawn */}
+      {withdrawn.length > 0 && (
+        <div className="card space-y-2">
+          <h2 className="font-semibold text-gray-900 text-sm">Withdrawn</h2>
+          {withdrawn.map(p => (
+            <div key={p.id} className="flex items-center justify-between text-sm py-1">
+              <span className="text-gray-500 line-through">{p.display_name}</span>
+              {p.status === 'late_withdraw' && (
+                <span className="badge bg-orange-100 text-orange-700">Late ⚠️</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Payment section */}
+      {session.status === 'locked' && (
+        <PaymentSection
+          session={session}
+          participants={[...joined, ...waitlist.filter(p =>
+            (paymentRecords.find(r => r.participant_id === p.id))
+          )]}
+          paymentMethods={paymentMethods}
+          paymentRecords={paymentRecords}
+          currentUserId={currentUser?.id}
+          isAdmin={isAdmin}
+          onMethodAdded={m => setPaymentMethods(prev => [...prev, m])}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Participant row ────────────────────────────────────────────────────────
+function ParticipantRow({
+  p, rank, isAdmin, isLocked, isOwn, payRecord,
+  onWithdraw, onToggleLate,
+}: {
+  p: ParticipantWithProfile
+  rank: number
+  isAdmin: boolean
+  isLocked: boolean
+  isOwn: boolean
+  payRecord?: PaymentRecord
+  onWithdraw: () => void
+  onToggleLate: () => void
+}) {
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      {/* Rank badge */}
+      <span className="w-7 h-7 rounded-full bg-brand-50 text-brand-700 text-xs font-bold
+                       flex items-center justify-center shrink-0">
+        {rank}
+      </span>
+
+      {/* Avatar */}
+      {(p as any).profile?.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={(p as any).profile.avatar_url} alt=""
+             className="w-8 h-8 rounded-full object-cover shrink-0" />
+      ) : (
+        <span className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 text-xs font-bold
+                         flex items-center justify-center shrink-0">
+          {p.display_name[0]?.toUpperCase()}
+        </span>
+      )}
+
+      {/* Name */}
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-gray-900 truncate block">{p.display_name}</span>
+        {payRecord && (
+          <span className="text-xs text-gray-400">
+            ${(payRecord.base_fee + payRecord.late_fee).toFixed(2)}
+          </span>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Stayed late toggle (admin, locked) */}
+        {isAdmin && isLocked && (
+          <button onClick={onToggleLate}
+            title={p.stayed_late ? 'Played extra — click to unmark' : 'Mark as played extra time'}
+            className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors
+              ${p.stayed_late
+                ? 'bg-orange-100 text-orange-700'
+                : 'bg-gray-100 text-gray-400 hover:bg-orange-50 hover:text-orange-500'}`}>
+            +时
+          </button>
+        )}
+
+        {/* Payment status badge (admin sees all, others see own) */}
+        {payRecord && (
+          <span className={`badge ${PAY_CLASS[payRecord.status]}`}>
+            {PAY_LABEL[payRecord.status]}
+          </span>
+        )}
+
+        {/* Withdraw (own entries, unlocked) */}
+        {isOwn && !isLocked && (
+          <button onClick={onWithdraw}
+            className="w-7 h-7 flex items-center justify-center text-red-400 hover:text-red-600 active:scale-95">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd"/>
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Payment section ────────────────────────────────────────────────────────
+function PaymentSection({
+  session, participants, paymentMethods, paymentRecords,
+  currentUserId, isAdmin, onMethodAdded,
+}: {
+  session: SessionWithInitiator
+  participants: ParticipantWithProfile[]
+  paymentMethods: PaymentMethod[]
+  paymentRecords: PaymentRecord[]
+  currentUserId?: string
+  isAdmin: boolean
+  onMethodAdded: (m: PaymentMethod) => void
+}) {
+  const supabase = createClient()
+  const [addOpen, setAddOpen] = useState(false)
+  const [mType, setMType]     = useState<PaymentMethodType>('venmo')
+  const [mLabel, setMLabel]   = useState('')
+  const [mRef,   setMRef]     = useState('')
+  const [saving, setSaving]   = useState(false)
+
+  // Current user's amount owed
+  const myParticipantIds = currentUserId
+    ? participants.filter(p => p.user_id === currentUserId).map(p => p.id)
+    : []
+  const myTotal = paymentRecords
+    .filter(r => myParticipantIds.includes(r.participant_id))
+    .reduce((s, r) => s + r.base_fee + r.late_fee, 0)
+
+  async function saveMethod() {
+    if (!mLabel.trim() || !mRef.trim() || !currentUserId) return
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('payment_methods')
+      .insert({ session_id: session.id, type: mType, label: mLabel.trim(), account_ref: mRef.trim(), created_by: currentUserId })
+      .select().single()
+    setSaving(false)
+    if (!error && data) { onMethodAdded(data); setMLabel(''); setMRef(''); setAddOpen(false) }
+  }
+
+  return (
+    <div className="card space-y-4">
+      <h2 className="font-semibold text-gray-900">💳 Payments</h2>
+
+      {/* Payment methods */}
+      {paymentMethods.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">How to Pay</p>
+          {paymentMethods.map(method => (
+            <div key={method.id} className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{method.label}</p>
+                <p className="text-xs text-gray-400">{method.account_ref}</p>
+              </div>
+              {method.type === 'venmo' && (
+                <a href={venmoUrl(method.account_ref, myTotal > 0 ? myTotal : undefined)}
+                   className="shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white
+                              bg-[#008CFF] active:opacity-80 transition-opacity">
+                  Pay{myTotal > 0 ? ` $${myTotal.toFixed(2)}` : ''}
+                </a>
+              )}
+              {method.type === 'zelle' && (
+                <span className="shrink-0 px-3 py-1.5 rounded-xl text-sm font-semibold
+                                 bg-purple-600 text-white">
+                  Zelle: {method.account_ref}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Admin: add method */}
+      {isAdmin && (
+        <div>
+          {!addOpen ? (
+            <button onClick={() => setAddOpen(true)}
+              className="text-sm text-brand-600 font-semibold">
+              + Add payment method
+            </button>
+          ) : (
+            <div className="space-y-2 pt-1">
+              <div className="flex gap-2">
+                {(['venmo','zelle','other'] as PaymentMethodType[]).map(t => (
+                  <button key={t} onClick={() => setMType(t)}
+                    className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-colors
+                      ${mType === t ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    {t[0].toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <input className="input" placeholder="Label (e.g. Alice's Venmo)"
+                value={mLabel} onChange={e => setMLabel(e.target.value)} />
+              <input className="input" placeholder="Account (e.g. @alice-bmt)"
+                value={mRef} onChange={e => setMRef(e.target.value)} />
+              <div className="flex gap-2">
+                <button onClick={saveMethod} disabled={saving}
+                  className="flex-1 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => setAddOpen(false)}
+                  className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Payment records (admin sees all, others see own) */}
+      {paymentRecords.length > 0 && (
+        <div className="space-y-2 pt-2 border-t border-gray-100">
+          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">Records</p>
+          {participants.map(p => {
+            const record = paymentRecords.find(r => r.participant_id === p.id)
+            if (!record && !isAdmin) return null
+            if (!record) return null
+            return (
+              <div key={p.id} className="flex items-center justify-between text-sm">
+                <span className="text-gray-700">{p.display_name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-xs">
+                    ${(record.base_fee + record.late_fee).toFixed(2)}
+                  </span>
+                  <span className={`badge ${PAY_CLASS[record.status]}`}>
+                    {PAY_LABEL[record.status]}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Share button ──────────────────────────────────────────────────────────
+function ShareButton({ sessionId }: { sessionId: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function share() {
+    const url = `${location.origin}/sessions/${sessionId}`
+    if (navigator.share) {
+      await navigator.share({ title: '菜狗 Badminton Session', url })
+    } else {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <button onClick={share}
+      className="w-full py-2 text-sm font-medium text-gray-500 border border-gray-200
+                 rounded-xl active:bg-gray-50 transition-colors">
+      {copied ? '✅ Link copied!' : '🔗 Share invite link'}
+    </button>
+  )
+}
