@@ -28,9 +28,9 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const path = request.nextUrl.pathname
-  const protectedPrefixes = ['/sessions/new', '/profile']
-  const needsAuth = protectedPrefixes.some(p => path.startsWith(p))
-  if (needsAuth && !user) {
+  const publicPrefixes = ['/login', '/auth']
+  const isPublic = publicPrefixes.some(p => path.startsWith(p))
+  if (!isPublic && !user) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('next', path)
     return NextResponse.redirect(loginUrl)
