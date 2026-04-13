@@ -1,38 +1,52 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 
 function LoginForm() {
-  const supabase    = createClient()
-  const params      = useSearchParams()
-  const next        = params.get('next') ?? '/sessions'
-  const [email, setEmail]   = useState('')
-  const [sent, setSent]     = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState('')
+  const supabase = createClient()
+  const router   = useRouter()
+  const params   = useSearchParams()
+  const next     = params.get('next') ?? '/sessions'
+
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+  const [mode,     setMode]     = useState<'password' | 'magic'>('password')
+  const [sent,     setSent]     = useState(false)
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState('')
 
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
+      options: { redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
     })
     if (error) setError(error.message)
   }
 
-  async function signInWithEmail(e: React.FormEvent) {
+  async function signInWithPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim() || !password) return
+    setLoading(true)
+    setError('')
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+    setLoading(false)
+    if (error) setError(error.message)
+    else router.push(next)
+  }
+
+  async function signInWithMagicLink(e: React.FormEvent) {
     e.preventDefault()
     if (!email.trim()) return
     setLoading(true)
     setError('')
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: {
-        emailRedirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
+      options: { emailRedirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
     })
     setLoading(false)
     if (error) setError(error.message)
@@ -73,23 +87,49 @@ function LoginForm() {
         <hr className="flex-1 border-gray-200" />
       </div>
 
-      <form onSubmit={signInWithEmail} className="space-y-3">
-        <input
-          type="email"
-          className="input"
-          placeholder="your@email.com"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          required
-        />
-        <button type="submit" disabled={loading} className="btn-primary">
-          {loading ? 'Sending…' : 'Send magic link'}
+      {/* Mode toggle */}
+      <div className="flex rounded-xl overflow-hidden border border-gray-200 text-sm font-semibold">
+        <button
+          onClick={() => setMode('password')}
+          className={`flex-1 py-2 transition-colors ${mode === 'password' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}
+        >
+          Password
         </button>
-      </form>
+        <button
+          onClick={() => setMode('magic')}
+          className={`flex-1 py-2 transition-colors ${mode === 'magic' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}
+        >
+          Magic link
+        </button>
+      </div>
 
-      {error && (
-        <p className="text-sm text-red-500 text-center">{error}</p>
+      {mode === 'password' ? (
+        <form onSubmit={signInWithPassword} className="space-y-3">
+          <input
+            type="email" className="input" placeholder="your@email.com"
+            value={email} onChange={e => setEmail(e.target.value)} required
+          />
+          <input
+            type="password" className="input" placeholder="Password"
+            value={password} onChange={e => setPassword(e.target.value)} required
+          />
+          <button type="submit" disabled={loading} className="btn-primary">
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={signInWithMagicLink} className="space-y-3">
+          <input
+            type="email" className="input" placeholder="your@email.com"
+            value={email} onChange={e => setEmail(e.target.value)} required
+          />
+          <button type="submit" disabled={loading} className="btn-primary">
+            {loading ? 'Sending…' : 'Send magic link'}
+          </button>
+        </form>
       )}
+
+      {error && <p className="text-sm text-red-500 text-center">{error}</p>}
     </div>
   )
 }
@@ -110,7 +150,6 @@ export default function LoginPage() {
     <main className="min-h-screen flex flex-col items-center justify-center px-6 py-12
                      bg-gradient-to-br from-brand-50 to-white">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo */}
         <div className="text-center space-y-2">
           <div className="text-6xl">🏸</div>
           <h1 className="text-3xl font-bold text-gray-900">菜狗</h1>
