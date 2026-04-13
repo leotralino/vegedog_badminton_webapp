@@ -21,13 +21,12 @@ export type Database = {
 // ── Domain types ───────────────────────────────────────────────────────────
 
 export interface Profile {
-  id:         string
-  nickname:   string
-  avatar_url: string | null
-  venmo_user: string | null
-  zelle_info: string | null
-  created_at: string
-  updated_at: string
+  id:             string
+  nickname:       string
+  avatar_url:     string | null
+  venmo_username: string | null
+  created_at:     string
+  updated_at:     string
 }
 
 export type SessionStatus = 'open' | 'locked' | 'canceled'

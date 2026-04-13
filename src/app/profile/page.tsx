@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import type { Profile } from '@/lib/types'
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -29,7 +30,7 @@ export default function ProfilePage() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single()
+        .single() as { data: Profile | null; error: unknown }
 
       if (profile) {
         setNickname(profile.nickname ?? '')
