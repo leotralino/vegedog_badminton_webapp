@@ -40,7 +40,8 @@ export interface Session {
   max_participants:     number
   court_count:          number
   fee_per_person:       number | null
-  late_withdraw_ratio:  number
+  late_withdraw_ratio:  number | null
+  notes:                string | null
   status:               SessionStatus
   initiator_id:         string
   created_at:           string

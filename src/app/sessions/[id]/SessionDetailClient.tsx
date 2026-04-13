@@ -193,6 +193,14 @@ export default function SessionDetailClient({
         </div>
       )}
 
+      {/* Notes card — shown at top when present */}
+      {session.notes && (
+        <div className="card bg-brand-50 border border-brand-100">
+          <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-2">细节</p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{session.notes}</p>
+        </div>
+      )}
+
       {/* Meta card */}
       <div className="card space-y-3">
         <div className="flex items-start justify-between gap-2">
@@ -214,11 +222,6 @@ export default function SessionDetailClient({
           <div className="flex gap-2"><span>🏸</span>
             <span>{session.court_count}片场地 · {session.max_participants}人满员</span>
           </div>
-          {session.fee_per_person != null && (
-            <div className="flex gap-2"><span>💵</span>
-              <span>${session.fee_per_person}/人 · 迟退违约{session.late_withdraw_ratio * 100}%</span>
-            </div>
-          )}
         </div>
 
         {/* Admin controls */}

@@ -86,3 +86,12 @@ where avatar_url is null or avatar_url = '';
 
 -- Fix 4: Enable Realtime for live queue updates
 alter publication supabase_realtime add table public.participants;
+
+-- Fix 5: Add notes column to sessions, make fee fields optional
+alter table public.sessions
+  add column if not exists notes text,
+  alter column fee_per_person     set default null,
+  alter column late_withdraw_ratio drop not null;
+
+alter table public.sessions
+  alter column late_withdraw_ratio set default null;
