@@ -31,7 +31,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   ] = await Promise.all([
     supabase
       .from('participants')
-      .select(`*, profile:profiles!user_id(id, nickname, avatar_url)`)
+      .select(`*, profile:profiles!user_id(id, nickname, avatar_url, venmo_username)`)
       .eq('session_id', id)
       .order('queue_position'),
     supabase.from('payment_methods').select('*').eq('session_id', id),

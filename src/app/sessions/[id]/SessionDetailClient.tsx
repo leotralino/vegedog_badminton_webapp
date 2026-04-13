@@ -67,7 +67,7 @@ export default function SessionDetailClient({
   const refreshParticipants = useCallback(async () => {
     const { data } = await supabase
       .from('participants')
-      .select(`*, profile:profiles!user_id(id, nickname, avatar_url)`)
+      .select(`*, profile:profiles!user_id(id, nickname, avatar_url, venmo_username)`)
       .eq('session_id', session.id)
       .order('queue_position')
     if (data) setParticipants(data as ParticipantWithProfile[])
@@ -118,7 +118,7 @@ export default function SessionDetailClient({
       display_name: name, queue_position: participants.length + 1,
       status: joinedNow < session.max_participants ? 'joined' : 'waitlist',
       stayed_late: false, joined_at: new Date().toISOString(), withdrew_at: null,
-      profile: { id: currentUser.id, nickname: currentUser.profile?.nickname ?? 'Player', avatar_url: currentUser.profile?.avatar_url ?? null },
+      profile: { id: currentUser.id, nickname: currentUser.profile?.nickname ?? 'Player', avatar_url: currentUser.profile?.avatar_url ?? null, venmo_username: null },
     }
     setParticipants(prev => [...prev, tempP])
 
@@ -333,9 +333,7 @@ export default function SessionDetailClient({
       {session.status === 'locked' && (
         <PaymentSection
           session={session}
-          participants={[...joined, ...waitlist.filter(p =>
-            (paymentRecords.find(r => r.participant_id === p.id))
-          )]}
+          participants={[...joined, ...waitlist]}
           paymentMethods={paymentMethods}
           paymentRecords={paymentRecords}
           currentUserId={currentUser?.id}
@@ -435,93 +433,154 @@ function PaymentSection({
   isAdmin: boolean
   onMethodAdded: (m: PaymentMethod) => void
 }) {
-  const supabase = createClient()
-  const [addOpen, setAddOpen] = useState(false)
-  const [mType, setMType]     = useState<PaymentMethodType>('venmo')
-  const [mLabel, setMLabel]   = useState('')
-  const [mRef,   setMRef]     = useState('')
-  const [saving, setSaving]   = useState(false)
+  const supabase  = createClient()
+  const [showForm,  setShowForm]  = useState(false)
+  const [search,    setSearch]    = useState('')
+  const [selected,  setSelected]  = useState<ParticipantWithProfile | null>(null)
+  const [venmoId,   setVenmoId]   = useState('')
+  const [saving,    setSaving]    = useState(false)
+  const [dropOpen,  setDropOpen]  = useState(false)
 
-  // Current user's amount owed
-  const myParticipantIds = currentUserId
-    ? participants.filter(p => p.user_id === currentUserId).map(p => p.id)
-    : []
-  const myTotal = paymentRecords
-    .filter(r => myParticipantIds.includes(r.participant_id))
-    .reduce((s, r) => s + r.base_fee + r.late_fee, 0)
+  // Deduplicate participants by user_id for the search dropdown
+  const uniqueUsers = participants.filter(
+    (p, i, arr) => arr.findIndex(x => x.user_id === p.user_id) === i
+  )
+  const filtered = uniqueUsers.filter(p =>
+    (p.profile?.nickname ?? p.display_name).toLowerCase().includes(search.toLowerCase())
+  )
+
+  function selectUser(p: ParticipantWithProfile) {
+    setSelected(p)
+    setSearch(p.profile?.nickname ?? p.display_name)
+    setVenmoId(p.profile?.venmo_username ?? '')
+    setDropOpen(false)
+  }
+
+  function resetForm() {
+    setShowForm(false); setSelected(null); setSearch(''); setVenmoId(''); setDropOpen(false)
+  }
 
   async function saveMethod() {
-    if (!mLabel.trim() || !mRef.trim() || !currentUserId) return
+    if (!selected || !currentUserId) return
+    const ref = venmoId.trim().replace(/^@/, '')
+    if (!ref) return
     setSaving(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.from('payment_methods') as any)
-      .insert({ session_id: session.id, type: mType, label: mLabel.trim(), account_ref: mRef.trim(), created_by: currentUserId })
+      .insert({
+        session_id:  session.id,
+        type:        'venmo',
+        label:       selected.profile?.nickname ?? selected.display_name,
+        account_ref: ref,
+        created_by:  currentUserId,
+      })
       .select().single() as { data: PaymentMethod | null; error: unknown }
     setSaving(false)
-    if (!error && data) { onMethodAdded(data); setMLabel(''); setMRef(''); setAddOpen(false) }
+    if (!error && data) { onMethodAdded(data); resetForm() }
   }
+
+  // Amount owed by current user
+  const myIds   = currentUserId ? participants.filter(p => p.user_id === currentUserId).map(p => p.id) : []
+  const myTotal = paymentRecords.filter(r => myIds.includes(r.participant_id))
+    .reduce((s, r) => s + r.base_fee + r.late_fee, 0)
 
   return (
     <div className="card space-y-4">
       <h2 className="font-semibold text-gray-900">💳 Payments</h2>
 
-      {/* Payment methods */}
+      {/* Pay-to rows */}
       {paymentMethods.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">How to Pay</p>
+          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">Pay to</p>
           {paymentMethods.map(method => (
             <div key={method.id} className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-gray-900">{method.label}</p>
-                <p className="text-xs text-gray-400">{method.account_ref}</p>
+                <p className="text-xs text-gray-400">@{method.account_ref}</p>
               </div>
-              {method.type === 'venmo' && (
-                <a href={venmoUrl(method.account_ref, myTotal > 0 ? myTotal : undefined)}
-                   className="shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white
-                              bg-[#008CFF] active:opacity-80 transition-opacity">
-                  Pay{myTotal > 0 ? ` $${myTotal.toFixed(2)}` : ''}
-                </a>
-              )}
-              {method.type === 'zelle' && (
-                <span className="shrink-0 px-3 py-1.5 rounded-xl text-sm font-semibold
-                                 bg-purple-600 text-white">
-                  Zelle: {method.account_ref}
-                </span>
-              )}
+              <a href={venmoUrl(method.account_ref, myTotal > 0 ? myTotal : undefined)}
+                 className="shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white
+                            bg-[#008CFF] active:opacity-80 transition-opacity">
+                Pay{myTotal > 0 ? ` $${myTotal.toFixed(2)}` : ''}
+              </a>
             </div>
           ))}
         </div>
       )}
 
-      {/* Admin: add method */}
+      {/* Admin: add payment receiver */}
       {isAdmin && (
         <div>
-          {!addOpen ? (
-            <button onClick={() => setAddOpen(true)}
-              className="text-sm text-brand-600 font-semibold">
-              + Add payment method
+          {!showForm ? (
+            <button onClick={() => setShowForm(true)} className="text-sm text-brand-600 font-semibold">
+              + Add payment receiver
             </button>
           ) : (
-            <div className="space-y-2 pt-1">
-              <div className="flex gap-2">
-                {(['venmo','zelle','other'] as PaymentMethodType[]).map(t => (
-                  <button key={t} onClick={() => setMType(t)}
-                    className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-colors
-                      ${mType === t ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                    {t[0].toUpperCase() + t.slice(1)}
-                  </button>
-                ))}
+            <div className="space-y-3 border border-gray-100 rounded-xl p-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Who should participants pay?
+              </p>
+
+              {/* User search */}
+              <div className="relative">
+                <input
+                  className="input"
+                  placeholder="Search by name…"
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setSelected(null); setDropOpen(true) }}
+                  onFocus={() => setDropOpen(true)}
+                />
+                {dropOpen && search && filtered.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100
+                                  rounded-xl shadow-lg overflow-hidden">
+                    {filtered.map(p => (
+                      <button key={p.user_id} onMouseDown={() => selectUser(p)}
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50
+                                   flex items-center gap-2.5 transition-colors">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={p.profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
+                          alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0"
+                        />
+                        <span className="font-medium">{p.profile?.nickname ?? p.display_name}</span>
+                        {p.profile?.venmo_username && (
+                          <span className="text-xs text-gray-400 ml-auto">@{p.profile.venmo_username}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <input className="input" placeholder="Label (e.g. Alice's Venmo)"
-                value={mLabel} onChange={e => setMLabel(e.target.value)} />
-              <input className="input" placeholder="Account (e.g. @alice-bmt)"
-                value={mRef} onChange={e => setMRef(e.target.value)} />
+
+              {/* Venmo ID — pre-filled from profile or blank */}
+              {selected && (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">
+                    Venmo ID
+                    {selected.profile?.venmo_username
+                      ? <span className="ml-1 text-brand-600">(from profile)</span>
+                      : <span className="ml-1 text-orange-500">(not set — enter manually)</span>
+                    }
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                    <input
+                      className="input pl-7"
+                      placeholder="venmo-handle"
+                      value={venmoId}
+                      onChange={e => setVenmoId(e.target.value.replace(/^@/, ''))}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2">
-                <button onClick={saveMethod} disabled={saving}
-                  className="flex-1 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold disabled:opacity-50">
-                  {saving ? 'Saving…' : 'Save'}
+                <button onClick={saveMethod} disabled={saving || !selected || !venmoId.trim()}
+                  className="flex-1 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold
+                             disabled:opacity-40 transition-opacity">
+                  {saving ? 'Saving…' : 'Add'}
                 </button>
-                <button onClick={() => setAddOpen(false)}
+                <button onClick={resetForm}
                   className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">
                   Cancel
                 </button>
@@ -531,13 +590,12 @@ function PaymentSection({
         </div>
       )}
 
-      {/* Payment records (admin sees all, others see own) */}
+      {/* Payment records */}
       {paymentRecords.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-gray-100">
           <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">Records</p>
           {participants.map(p => {
             const record = paymentRecords.find(r => r.participant_id === p.id)
-            if (!record && !isAdmin) return null
             if (!record) return null
             return (
               <div key={p.id} className="flex items-center justify-between text-sm">

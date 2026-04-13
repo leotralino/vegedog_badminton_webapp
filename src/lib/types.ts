@@ -65,7 +65,7 @@ export interface Participant {
 }
 
 export interface ParticipantWithProfile extends Participant {
-  profile: Pick<Profile, 'id' | 'nickname' | 'avatar_url'>
+  profile: Pick<Profile, 'id' | 'nickname' | 'avatar_url' | 'venmo_username'>
 }
 
 export type PaymentMethodType = 'venmo' | 'zelle' | 'other'
