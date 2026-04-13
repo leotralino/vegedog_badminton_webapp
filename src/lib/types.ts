@@ -35,6 +35,7 @@ export interface Session {
   id:                   string
   title:                string
   location:             string
+  location_address:     string | null
   starts_at:            string   // ISO8601 UTC
   withdraw_deadline:    string
   max_participants:     number

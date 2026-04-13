@@ -8,6 +8,7 @@ import type {
   SessionWithInitiator, Participant, ParticipantWithProfile,
   PaymentMethod, PaymentRecord, Profile, PaymentMethodType,
 } from '@/lib/types'
+import { presetAddress } from '@/lib/locations'
 
 // ── Props ──────────────────────────────────────────────────────────────────
 interface Props {
@@ -19,7 +20,7 @@ interface Props {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-const STATUS_LABEL: Record<string, string> = { open:'招募中', locked:'已锁定', canceled:'已取消' }
+const STATUS_LABEL: Record<string, string> = { open:'正在接龙', locked:'已锁定', canceled:'已取消' }
 const STATUS_CLASS: Record<string, string> = {
   open:    'bg-brand-100 text-brand-700',
   locked:  'bg-blue-100 text-blue-700',
@@ -31,6 +32,22 @@ const PAY_CLASS: Record<string, string> = {
   waived: 'bg-orange-100 text-orange-700',
 }
 const PAY_LABEL: Record<string, string> = { paid:'已付 ✓', unpaid:'未付', waived:'已免' }
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  async function copy() {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button onClick={copy}
+      className="shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500
+                 hover:bg-gray-200 transition-colors font-medium">
+      {copied ? '✓' : '复制'}
+    </button>
+  )
+}
 
 function venmoUrl(accountRef: string): string {
   const username = accountRef.startsWith('@') ? accountRef.slice(1) : accountRef
@@ -193,14 +210,6 @@ export default function SessionDetailClient({
         </div>
       )}
 
-      {/* Notes card — shown at top when present */}
-      {session.notes && (
-        <div className="card bg-brand-50 border border-brand-100">
-          <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-2">细节</p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{session.notes}</p>
-        </div>
-      )}
-
       {/* Meta card */}
       <div className="card space-y-3">
         <div className="flex items-start justify-between gap-2">
@@ -215,7 +224,22 @@ export default function SessionDetailClient({
           <div className="flex gap-2"><span>⏰</span>
             <span suppressHydrationWarning>退出截止：{formatSessionDate(session.withdraw_deadline)}</span>
           </div>
-          <div className="flex gap-2"><span>📍</span><span>{session.location}</span></div>
+          {/* Location with address + copy */}
+          <div className="flex gap-2">
+            <span>📍</span>
+            <div className="flex-1 min-w-0">
+              <span>{session.location}</span>
+              {(() => {
+                const addr = (session as any).location_address ?? presetAddress(session.location)
+                return addr ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-gray-400 flex-1 leading-relaxed">{addr}</span>
+                    <CopyButton text={addr} />
+                  </div>
+                ) : null
+              })()}
+            </div>
+          </div>
           <div className="flex gap-2"><span>👤</span>
             <span>发起：{(session as any).initiator?.nickname ?? '—'}</span>
           </div>
@@ -236,6 +260,14 @@ export default function SessionDetailClient({
         {/* Share link */}
         <ShareButton sessionId={session.id} />
       </div>
+
+      {/* Notes card — below meta */}
+      {session.notes && (
+        <div className="card bg-brand-50 border border-brand-100">
+          <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-2">细节</p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{session.notes}</p>
+        </div>
+      )}
 
       {/* Join section */}
       {session.status === 'open' && (

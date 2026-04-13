@@ -3,7 +3,7 @@ import { formatSessionDate } from '@/lib/dates'
 import type { SessionWithInitiator } from '@/lib/types'
 
 const STATUS_LABEL: Record<string, string> = {
-  open:     '招募中',
+  open:     '正在接龙',
   locked:   '已锁定',
   canceled: '已取消',
 }
