@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Navbar from '@/components/Navbar'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ProfilePage() {
@@ -78,19 +77,14 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <>
-        <Navbar />
-        <main className="max-w-2xl mx-auto px-4 py-6">
-          <div className="card animate-pulse h-48" />
-        </main>
-      </>
+      <main className="max-w-2xl mx-auto px-4 py-6">
+        <div className="card animate-pulse h-48" />
+      </main>
     )
   }
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+    <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         <h1 className="text-xl font-bold text-gray-900">Profile</h1>
 
         {/* Avatar */}
@@ -157,7 +151,6 @@ export default function ProfilePage() {
             Sign out
           </button>
         </div>
-      </main>
-    </>
+    </main>
   )
 }

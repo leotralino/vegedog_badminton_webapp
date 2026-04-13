@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Navbar from '@/components/Navbar'
 import { createClient } from '@/lib/supabase/client'
 import { defaultStartsAt, defaultWithdrawDeadline, roundTo15, localToPacificISO } from '@/lib/dates'
 
@@ -94,9 +93,7 @@ export default function NewSessionPage() {
   }
 
   return (
-    <>
-      <Navbar />
-      <main className="max-w-2xl mx-auto px-4 py-6">
+    <main className="max-w-2xl mx-auto px-4 py-6">
         <h1 className="text-xl font-bold text-gray-900 mb-6">Create Session</h1>
 
         <form onSubmit={submit} className="space-y-4">
@@ -188,7 +185,6 @@ export default function NewSessionPage() {
           </button>
 
         </form>
-      </main>
-    </>
+    </main>
   )
 }
