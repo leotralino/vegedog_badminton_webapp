@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import NavbarActions from './NavbarActions'
 
 export default async function Navbar() {
   const supabase = await createClient()
@@ -19,31 +20,7 @@ export default async function Navbar() {
           <span className="text-xl">🏸</span>
           <span>菜狗主页</span>
         </Link>
-
-        <div className="flex items-center gap-3">
-          {user ? (
-            <>
-              <Link
-                href="/sessions/new"
-                className="text-sm font-semibold text-white bg-brand-600 px-3 py-1.5 rounded-lg
-                           active:bg-brand-700 transition-colors"
-              >
-                + 发起接龙
-              </Link>
-              <Link href="/settings" className="flex items-center gap-1.5 text-sm text-gray-600">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={avatarSrc} alt="" className="w-7 h-7 rounded-full object-cover bg-gray-100" />
-              </Link>
-            </>
-          ) : (
-            <Link
-              href="/login"
-              className="text-sm font-semibold text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg"
-            >
-              登录
-            </Link>
-          )}
-        </div>
+        <NavbarActions loggedIn={!!user} avatarSrc={avatarSrc} />
       </div>
     </header>
   )

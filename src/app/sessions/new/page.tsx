@@ -39,9 +39,44 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
+const GUARD_MSG = '你确定要退出吗？内容不会保存。'
+
+/** Blocks browser close/refresh and in-app link clicks when active. */
+function useNavigationGuard(dirtyRef: React.RefObject<boolean>) {
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return
+      e.preventDefault()
+      e.returnValue = GUARD_MSG
+    }
+    // Intercept all anchor clicks in capture phase before Next.js handles them
+    const onLinkClick = (e: MouseEvent) => {
+      if (!dirtyRef.current) return
+      const anchor = (e.target as Element).closest('a[href]')
+      if (!anchor) return
+      const href = anchor.getAttribute('href') ?? ''
+      if (!href || href.startsWith('#')) return
+      if (!window.confirm(GUARD_MSG)) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    document.addEventListener('click', onLinkClick, true)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      document.removeEventListener('click', onLinkClick, true)
+    }
+  }, [dirtyRef])
+}
+
 export default function NewSessionPage() {
   const router   = useRouter()
   const supabase = createClient()
+
+  // Navigation guard — becomes active on first user input, cleared on submit
+  const dirtyRef = useRef(false)
+  useNavigationGuard(dirtyRef)
 
   // Location state
   const [locDropOpen,    setLocDropOpen]    = useState(false)
@@ -81,6 +116,7 @@ export default function NewSessionPage() {
   const [error,  setError]  = useState('')
 
   function set(key: string, value: string) {
+    dirtyRef.current = true
     setForm(f => ({ ...f, [key]: value }))
   }
 
@@ -135,6 +171,7 @@ export default function NewSessionPage() {
         .single() as { data: { id: string } | null; error: unknown }
 
       if (dbErr) throw dbErr
+      dirtyRef.current = false  // clear guard before navigating
       router.push(`/sessions/${(data as { id: string }).id}`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '出现错误，请重试')
@@ -186,6 +223,7 @@ export default function NewSessionPage() {
                       key={loc.name}
                       type="button"
                       onMouseDown={() => {
+                        dirtyRef.current = true
                         setLocationPreset(loc.name)
                         setIsCustom(false)
                         setLocDropOpen(false)
