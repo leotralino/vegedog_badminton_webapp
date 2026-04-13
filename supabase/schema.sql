@@ -5,13 +5,12 @@
 
 -- ── Profiles (one per auth user) ──────────────────────────
 create table if not exists profiles (
-  id          uuid primary key references auth.users(id) on delete cascade,
-  nickname    text not null default '',
-  avatar_url  text,
-  venmo_user  text,   -- Venmo username, e.g. "alice-bmt"
-  zelle_info  text,   -- Zelle phone/email
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
+  id             uuid primary key references auth.users(id) on delete cascade,
+  nickname       text not null default '',
+  avatar_url     text,
+  venmo_username text,   -- Venmo username, e.g. "alice-bmt"
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
 );
 
 -- Auto-create a profile row whenever a new user signs up
@@ -217,8 +216,9 @@ alter table participants     enable row level security;
 alter table payment_methods  enable row level security;
 alter table payment_records  enable row level security;
 
--- Profiles: anyone can read; users can update their own
+-- Profiles: anyone can read; users can insert/update their own
 create policy "profiles_select_all"   on profiles for select using (true);
+create policy "profiles_insert_own"   on profiles for insert with check (auth.uid() = id);
 create policy "profiles_update_own"   on profiles for update using (auth.uid() = id);
 
 -- Sessions: anyone can read; auth users can create; initiator can update
