@@ -10,6 +10,7 @@ export default async function Navbar() {
     const { data } = await supabase.from('profiles').select('nickname, avatar_url').eq('id', user.id).single()
     profile = data as { nickname: string; avatar_url: string | null } | null
   }
+  const avatarSrc = profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${user?.id}`
 
   return (
     <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-100">
@@ -30,14 +31,8 @@ export default async function Navbar() {
                 + New
               </Link>
               <Link href="/profile" className="flex items-center gap-1.5 text-sm text-gray-600">
-                {profile?.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
-                ) : (
-                  <span className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold">
-                    {(profile?.nickname ?? 'P')[0].toUpperCase()}
-                  </span>
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={avatarSrc} alt="" className="w-7 h-7 rounded-full object-cover bg-gray-100" />
               </Link>
             </>
           ) : (

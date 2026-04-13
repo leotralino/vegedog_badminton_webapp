@@ -6,12 +6,13 @@ const WEEKDAYS_ZH = ['周日','周一','周二','周三','周四','周五','周�
 
 /** "04/14/26 (周二), 8:15pm PDT" */
 export function formatSessionDate(isoString: string): string {
-  const d   = new Date(isoString)
-  const zd  = toZonedTime(d, PACIFIC)
+  const d    = new Date(isoString)
+  const zd   = toZonedTime(d, PACIFIC)
   const date = tzFormat(zd, 'MM/dd/yy', { timeZone: PACIFIC })
   const time = tzFormat(zd, 'h:mmaa',   { timeZone: PACIFIC }).toLowerCase()
-  const tz   = tzFormat(zd, 'zzz',      { timeZone: PACIFIC })
-  const dow  = zd.getDay()            // 0=Sun in local (Pacific) zone
+  const dow  = zd.getDay()
+  // Compute offset explicitly to avoid locale-dependent abbreviation (PDT vs GMT-7)
+  const tz = getPacificOffsetMs(d) === -7 * 3600 * 1000 ? 'PDT' : 'PST'
   return `${date} (${WEEKDAYS_ZH[dow]}), ${time} ${tz}`
 }
 

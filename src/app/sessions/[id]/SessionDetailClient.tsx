@@ -107,28 +107,50 @@ export default function SessionDetailClient({
   // ── Join ──────────────────────────────────────────────────────────────
   async function handleJoin() {
     if (!currentUser) { router.push(`/login?next=/sessions/${session.id}`); return }
+    const name = joinName.trim() || (currentUser.profile?.nickname ?? 'Player')
     setJoining(true)
+
+    // Optimistic update — show entry immediately
+    const tempId = `temp-${Date.now()}`
+    const joinedNow = participants.filter(p => p.status === 'joined').length
+    const tempP: ParticipantWithProfile = {
+      id: tempId, session_id: session.id, user_id: currentUser.id,
+      display_name: name, queue_position: participants.length + 1,
+      status: joinedNow < session.max_participants ? 'joined' : 'waitlist',
+      stayed_late: false, joined_at: new Date().toISOString(), withdrew_at: null,
+      profile: { id: currentUser.id, nickname: currentUser.profile?.nickname ?? 'Player', avatar_url: currentUser.profile?.avatar_url ?? null },
+    }
+    setParticipants(prev => [...prev, tempP])
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.rpc as any)('join_session', {
-      p_session_id:   session.id,
-      p_user_id:      currentUser.id,
-      p_display_name: joinName.trim() || (currentUser.profile?.nickname ?? 'Player'),
+      p_session_id: session.id, p_user_id: currentUser.id, p_display_name: name,
     })
     setJoining(false)
-    if (error) showToast(error.message, false)
-    else showToast('Joined! 🎉')
+    if (error) {
+      setParticipants(prev => prev.filter(p => p.id !== tempId)) // revert
+      showToast(error.message, false)
+    } else {
+      showToast('Joined! 🎉')
+      refreshParticipants()
+    }
   }
 
   // ── Withdraw ──────────────────────────────────────────────────────────
   async function handleWithdraw(participantId: string) {
     if (!currentUser) return
+
+    // Optimistic update — hide entry immediately
+    setParticipants(prev => prev.map(p =>
+      p.id === participantId ? { ...p, status: 'withdrawn' as const, withdrew_at: new Date().toISOString() } : p
+    ))
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.rpc as any)('withdraw_participant', {
-      p_participant_id: participantId,
-      p_user_id:        currentUser.id,
+      p_participant_id: participantId, p_user_id: currentUser.id,
     })
-    if (error) showToast(error.message, false)
-    else showToast('Withdrawn')
+    if (error) { showToast(error.message, false); refreshParticipants() }
+    else { showToast('Withdrawn'); refreshParticipants() } // sync waitlist promotion
   }
 
   // ── Lock session ──────────────────────────────────────────────────────
@@ -145,11 +167,13 @@ export default function SessionDetailClient({
 
   // ── Toggle stayed late ────────────────────────────────────────────────
   async function handleToggleLate(p: Participant) {
+    const newVal = !p.stayed_late
+    setParticipants(prev => prev.map(pt => pt.id === p.id ? { ...pt, stayed_late: newVal } : pt))
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from('participants') as any)
-      .update({ stayed_late: !p.stayed_late })
+      .update({ stayed_late: newVal })
       .eq('id', p.id)
-    if (error) showToast(error.message, false)
+    if (error) { showToast(error.message, false); refreshParticipants() }
   }
 
   // ── Partition participants ────────────────────────────────────────────
@@ -185,9 +209,9 @@ export default function SessionDetailClient({
         </div>
 
         <div className="space-y-1.5 text-sm text-gray-600">
-          <div className="flex gap-2"><span>📅</span><span>{formatSessionDate(session.starts_at)}</span></div>
+          <div className="flex gap-2"><span>📅</span><span suppressHydrationWarning>{formatSessionDate(session.starts_at)}</span></div>
           <div className="flex gap-2"><span>⏰</span>
-            <span>Withdraw by {formatSessionDate(session.withdraw_deadline)}</span>
+            <span suppressHydrationWarning>Withdraw by {formatSessionDate(session.withdraw_deadline)}</span>
           </div>
           <div className="flex gap-2"><span>📍</span><span>{session.location}</span></div>
           <div className="flex gap-2"><span>👤</span>
@@ -346,16 +370,12 @@ function ParticipantRow({
       </span>
 
       {/* Avatar */}
-      {(p as any).profile?.avatar_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={(p as any).profile.avatar_url} alt=""
-             className="w-8 h-8 rounded-full object-cover shrink-0" />
-      ) : (
-        <span className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 text-xs font-bold
-                         flex items-center justify-center shrink-0">
-          {p.display_name[0]?.toUpperCase()}
-        </span>
-      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={(p as any).profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
+        alt=""
+        className="w-8 h-8 rounded-full object-cover shrink-0 bg-gray-100"
+      />
 
       {/* Name */}
       <div className="flex-1 min-w-0">
