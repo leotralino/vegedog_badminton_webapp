@@ -5,10 +5,10 @@ export default async function Navbar() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  let profile = null
+  let profile: { nickname: string; avatar_url: string | null } | null = null
   if (user) {
     const { data } = await supabase.from('profiles').select('nickname, avatar_url').eq('id', user.id).single()
-    profile = data
+    profile = data as { nickname: string; avatar_url: string | null } | null
   }
 
   return (

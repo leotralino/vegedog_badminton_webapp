@@ -80,11 +80,11 @@ export default function NewSessionPage() {
           initiator_id:        user.id,
         })
         .select()
-        .single()
+        .single() as { data: { id: string } | null; error: unknown }
 
       if (dbErr) throw dbErr
 
-      router.push(`/sessions/${data.id}`)
+      router.push(`/sessions/${(data as { id: string }).id}`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {

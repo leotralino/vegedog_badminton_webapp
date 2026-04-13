@@ -15,7 +15,8 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() { return request.cookies.getAll() },
-        setAll(list) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setAll(list: any[]) {
           list.forEach(({ name, value }) => request.cookies.set(name, value))
           response = NextResponse.next({ request })
           list.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
@@ -24,12 +25,9 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session — required for SSR
   const { data: { user } } = await supabase.auth.getUser()
 
   const path = request.nextUrl.pathname
-
-  // Require auth for protected routes
   const protectedPrefixes = ['/sessions/new', '/profile']
   const needsAuth = protectedPrefixes.some(p => path.startsWith(p))
   if (needsAuth && !user) {

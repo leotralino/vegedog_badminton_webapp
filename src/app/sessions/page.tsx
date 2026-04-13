@@ -24,7 +24,7 @@ async function getSessions() {
     .limit(10)
 
   // Get joined counts
-  const allSessions = [...(active ?? []), ...(past ?? [])]
+  const allSessions = [...(active ?? [])] as { id: string }[]
   const ids = allSessions.map(s => s.id)
   const { data: counts } = ids.length
     ? await supabase
@@ -32,10 +32,10 @@ async function getSessions() {
         .select('session_id')
         .in('session_id', ids)
         .eq('status', 'joined')
-    : { data: [] }
+    : { data: [] as { session_id: string }[] }
 
   const joinedBySession: Record<string, number> = {}
-  for (const row of counts ?? []) {
+  for (const row of (counts ?? []) as { session_id: string }[]) {
     joinedBySession[row.session_id] = (joinedBySession[row.session_id] ?? 0) + 1
   }
 

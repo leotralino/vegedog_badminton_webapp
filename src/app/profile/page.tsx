@@ -53,8 +53,8 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-        const { error: dbErr } = await supabase
-        .from('profiles')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: dbErr } = await (supabase.from('profiles') as any)
         .upsert({
             id:             user.id,
             nickname:       nickname.trim(),

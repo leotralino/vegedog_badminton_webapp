@@ -108,7 +108,8 @@ export default function SessionDetailClient({
   async function handleJoin() {
     if (!currentUser) { router.push(`/login?next=/sessions/${session.id}`); return }
     setJoining(true)
-    const { error } = await supabase.rpc('join_session', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('join_session', {
       p_session_id:   session.id,
       p_user_id:      currentUser.id,
       p_display_name: joinName.trim() || (currentUser.profile?.nickname ?? 'Player'),
@@ -121,7 +122,8 @@ export default function SessionDetailClient({
   // ── Withdraw ──────────────────────────────────────────────────────────
   async function handleWithdraw(participantId: string) {
     if (!currentUser) return
-    const { error } = await supabase.rpc('withdraw_participant', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('withdraw_participant', {
       p_participant_id: participantId,
       p_user_id:        currentUser.id,
     })
@@ -132,8 +134,8 @@ export default function SessionDetailClient({
   // ── Lock session ──────────────────────────────────────────────────────
   async function handleLock() {
     setLocking(true)
-    const { error } = await supabase
-      .from('sessions')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('sessions') as any)
       .update({ status: 'locked' })
       .eq('id', session.id)
     setLocking(false)
@@ -143,8 +145,8 @@ export default function SessionDetailClient({
 
   // ── Toggle stayed late ────────────────────────────────────────────────
   async function handleToggleLate(p: Participant) {
-    const { error } = await supabase
-      .from('participants')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('participants') as any)
       .update({ stayed_late: !p.stayed_late })
       .eq('id', p.id)
     if (error) showToast(error.message, false)
@@ -431,10 +433,10 @@ function PaymentSection({
   async function saveMethod() {
     if (!mLabel.trim() || !mRef.trim() || !currentUserId) return
     setSaving(true)
-    const { data, error } = await supabase
-      .from('payment_methods')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.from('payment_methods') as any)
       .insert({ session_id: session.id, type: mType, label: mLabel.trim(), account_ref: mRef.trim(), created_by: currentUserId })
-      .select().single()
+      .select().single() as { data: PaymentMethod | null; error: unknown }
     setSaving(false)
     if (!error && data) { onMethodAdded(data); setMLabel(''); setMRef(''); setAddOpen(false) }
   }
