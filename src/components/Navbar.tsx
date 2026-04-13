@@ -17,7 +17,7 @@ export default async function Navbar() {
       <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/sessions" className="flex items-center gap-2 font-bold text-gray-900">
           <span className="text-xl">🏸</span>
-          <span>菜狗</span>
+          <span>菜狗主页</span>
         </Link>
 
         <div className="flex items-center gap-3">
@@ -28,9 +28,9 @@ export default async function Navbar() {
                 className="text-sm font-semibold text-white bg-brand-600 px-3 py-1.5 rounded-lg
                            active:bg-brand-700 transition-colors"
               >
-                + 新建
+                + 发起接龙
               </Link>
-              <Link href="/profile" className="flex items-center gap-1.5 text-sm text-gray-600">
+              <Link href="/settings" className="flex items-center gap-1.5 text-sm text-gray-600">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={avatarSrc} alt="" className="w-7 h-7 rounded-full object-cover bg-gray-100" />
               </Link>

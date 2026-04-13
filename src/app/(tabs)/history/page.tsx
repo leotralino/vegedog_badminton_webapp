@@ -1,0 +1,56 @@
+import { createClient } from '@/lib/supabase/server'
+import SessionCard from '@/components/SessionCard'
+import type { SessionWithInitiator } from '@/lib/types'
+
+export const revalidate = 0
+
+async function getHistory() {
+  const supabase = await createClient()
+  // 历史: sessions that started more than 3h ago
+  const cutoff = new Date(Date.now() - 3 * 3600 * 1000).toISOString()
+
+  const { data: sessions } = await supabase
+    .from('sessions')
+    .select(`*, initiator:profiles!initiator_id(id, nickname, avatar_url)`)
+    .lt('starts_at', cutoff)
+    .order('starts_at', { ascending: false })
+    .limit(30)
+
+  const ids = (sessions ?? []).map((s: { id: string }) => s.id)
+  const { data: counts } = ids.length
+    ? await supabase
+        .from('participants')
+        .select('session_id')
+        .in('session_id', ids)
+        .eq('status', 'joined')
+    : { data: [] as { session_id: string }[] }
+
+  const joinedBySession: Record<string, number> = {}
+  for (const row of (counts ?? []) as { session_id: string }[]) {
+    joinedBySession[row.session_id] = (joinedBySession[row.session_id] ?? 0) + 1
+  }
+
+  return { sessions: (sessions ?? []) as unknown as SessionWithInitiator[], joinedBySession }
+}
+
+export default async function HistoryPage() {
+  const { sessions, joinedBySession } = await getHistory()
+
+  return (
+    <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      <h1 className="text-xl font-bold text-gray-900">历史</h1>
+      {sessions.length === 0 ? (
+        <div className="card text-center py-12 text-gray-400">
+          <p className="text-3xl mb-2">📋</p>
+          <p className="text-sm">暂无历史场次</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sessions.map(s => (
+            <SessionCard key={s.id} session={s} joinedCount={joinedBySession[s.id] ?? 0} />
+          ))}
+        </div>
+      )}
+    </main>
+  )
+}
