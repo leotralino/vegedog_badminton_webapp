@@ -32,15 +32,9 @@ const PAY_CLASS: Record<string, string> = {
 }
 const PAY_LABEL: Record<string, string> = { paid:'Paid ✓', unpaid:'Unpaid', waived:'Waived' }
 
-function venmoUrl(accountRef: string, amount?: number | null): string {
+function venmoUrl(accountRef: string): string {
   const username = accountRef.startsWith('@') ? accountRef.slice(1) : accountRef
-  const params = new URLSearchParams({
-    txn: 'pay',
-    recipients: username,
-    note: 'Badminton',
-    ...(amount ? { amount: amount.toFixed(2) } : {}),
-  })
-  return `venmo://paycharge?${params}`
+  return `https://venmo.com/${username}`
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -498,11 +492,17 @@ function PaymentSection({
                 <p className="text-sm font-medium text-gray-900">{method.label}</p>
                 <p className="text-xs text-gray-400">@{method.account_ref}</p>
               </div>
-              <a href={venmoUrl(method.account_ref, myTotal > 0 ? myTotal : undefined)}
-                 className="shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white
-                            bg-[#008CFF] active:opacity-80 transition-opacity">
-                Pay{myTotal > 0 ? ` $${myTotal.toFixed(2)}` : ''}
-              </a>
+              <div className="shrink-0 text-right">
+                {myTotal > 0 && (
+                  <p className="text-xs text-gray-500 mb-1">Amount: <strong>${myTotal.toFixed(2)}</strong></p>
+                )}
+                <a href={venmoUrl(method.account_ref)}
+                   target="_blank" rel="noopener noreferrer"
+                   className="inline-block px-4 py-2 rounded-xl text-sm font-bold text-white
+                              bg-[#008CFF] active:opacity-80 transition-opacity">
+                  Pay on Venmo
+                </a>
+              </div>
             </div>
           ))}
         </div>
