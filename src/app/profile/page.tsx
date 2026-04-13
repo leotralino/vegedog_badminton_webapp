@@ -53,14 +53,15 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const { error: dbErr } = await supabase
+        const { error: dbErr } = await supabase
         .from('profiles')
         .upsert({
-          id:             user.id,
-          nickname:       nickname.trim(),
-          venmo_username: venmoUsername.trim() || null,
-          avatar_url:     avatarUrl || null,
-        })
+            id:             user.id,
+            nickname:       nickname.trim(),
+            venmo_username: venmoUsername.trim() || null,
+            avatar_url:     user.user_metadata?.avatar_url || null,
+            updated_at:     new Date().toISOString(),
+        } as any)
 
       if (dbErr) throw dbErr
       setSuccess('Profile saved!')
