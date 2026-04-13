@@ -57,13 +57,13 @@ function LoginForm() {
     return (
       <div className="text-center space-y-3">
         <div className="text-4xl">📬</div>
-        <p className="font-semibold text-gray-900">Check your email</p>
+        <p className="font-semibold text-gray-900">查看邮箱</p>
         <p className="text-sm text-gray-500">
-          We sent a magic link to <strong>{email}</strong>.<br />
-          Click it to sign in — no password needed.
+          我们已向 <strong>{email}</strong> 发送了登录链接。<br />
+          点击链接即可登录，无需密码。
         </p>
         <button onClick={() => setSent(false)} className="text-sm text-brand-600 underline">
-          Use a different email
+          换一个邮箱
         </button>
       </div>
     )
@@ -78,12 +78,12 @@ function LoginForm() {
                    active:bg-gray-50 transition-colors shadow-sm"
       >
         <GoogleIcon />
-        Continue with Google
+        使用 Google 登录
       </button>
 
       <div className="flex items-center gap-3">
         <hr className="flex-1 border-gray-200" />
-        <span className="text-xs text-gray-400">or</span>
+        <span className="text-xs text-gray-400">或</span>
         <hr className="flex-1 border-gray-200" />
       </div>
 
@@ -93,13 +93,13 @@ function LoginForm() {
           onClick={() => setMode('password')}
           className={`flex-1 py-2 transition-colors ${mode === 'password' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}
         >
-          Password
+          密码登录
         </button>
         <button
           onClick={() => setMode('magic')}
           className={`flex-1 py-2 transition-colors ${mode === 'magic' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}
         >
-          Magic link
+          邮件链接
         </button>
       </div>
 
@@ -110,11 +110,11 @@ function LoginForm() {
             value={email} onChange={e => setEmail(e.target.value)} required
           />
           <input
-            type="password" className="input" placeholder="Password"
+            type="password" className="input" placeholder="密码"
             value={password} onChange={e => setPassword(e.target.value)} required
           />
           <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? '登录中…' : '登录'}
           </button>
         </form>
       ) : (
@@ -124,7 +124,7 @@ function LoginForm() {
             value={email} onChange={e => setEmail(e.target.value)} required
           />
           <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? 'Sending…' : 'Send magic link'}
+            {loading ? '发送中…' : '发送登录链接'}
           </button>
         </form>
       )}
@@ -153,7 +153,7 @@ export default function LoginPage() {
         <div className="text-center space-y-2">
           <div className="text-6xl">🏸</div>
           <h1 className="text-3xl font-bold text-gray-900">菜狗</h1>
-          <p className="text-gray-500 text-sm">Badminton session management</p>
+          <p className="text-gray-500 text-sm">羽毛球接龙</p>
         </div>
 
         <div className="card">
@@ -163,8 +163,8 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-gray-400">
-          Sign in to join or create badminton sessions.<br />
-          You can view sessions without signing in.
+          登录后可参加或创建场次。<br />
+          未登录也可浏览场次列表。
         </p>
       </div>
     </main>

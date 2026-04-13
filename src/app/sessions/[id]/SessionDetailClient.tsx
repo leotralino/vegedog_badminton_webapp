@@ -30,7 +30,7 @@ const PAY_CLASS: Record<string, string> = {
   unpaid: 'bg-red-100 text-red-700',
   waived: 'bg-orange-100 text-orange-700',
 }
-const PAY_LABEL: Record<string, string> = { paid:'Paid ✓', unpaid:'Unpaid', waived:'Waived' }
+const PAY_LABEL: Record<string, string> = { paid:'已付 ✓', unpaid:'未付', waived:'已免' }
 
 function venmoUrl(accountRef: string): string {
   const username = accountRef.startsWith('@') ? accountRef.slice(1) : accountRef
@@ -125,7 +125,7 @@ export default function SessionDetailClient({
       setParticipants(prev => prev.filter(p => p.id !== tempId)) // revert
       showToast(error.message, false)
     } else {
-      showToast('Joined! 🎉')
+      showToast('已加入！🎉')
       refreshParticipants()
     }
   }
@@ -144,7 +144,7 @@ export default function SessionDetailClient({
       p_participant_id: participantId, p_user_id: currentUser.id,
     })
     if (error) { showToast(error.message, false); refreshParticipants() }
-    else { showToast('Withdrawn'); refreshParticipants() } // sync waitlist promotion
+    else { showToast('已退出'); refreshParticipants() }
   }
 
   // ── Lock session ──────────────────────────────────────────────────────
@@ -156,7 +156,7 @@ export default function SessionDetailClient({
       .eq('id', session.id)
     setLocking(false)
     if (error) showToast(error.message, false)
-    else { showToast('Session locked 🔒'); router.refresh() }
+    else { showToast('接龙已锁定 🔒'); router.refresh() }
   }
 
   // ── Toggle stayed late ────────────────────────────────────────────────
@@ -205,18 +205,18 @@ export default function SessionDetailClient({
         <div className="space-y-1.5 text-sm text-gray-600">
           <div className="flex gap-2"><span>📅</span><span suppressHydrationWarning>{formatSessionDate(session.starts_at)}</span></div>
           <div className="flex gap-2"><span>⏰</span>
-            <span suppressHydrationWarning>Withdraw by {formatSessionDate(session.withdraw_deadline)}</span>
+            <span suppressHydrationWarning>退出截止：{formatSessionDate(session.withdraw_deadline)}</span>
           </div>
           <div className="flex gap-2"><span>📍</span><span>{session.location}</span></div>
           <div className="flex gap-2"><span>👤</span>
-            <span>by {(session as any).initiator?.nickname ?? '—'}</span>
+            <span>发起：{(session as any).initiator?.nickname ?? '—'}</span>
           </div>
           <div className="flex gap-2"><span>🏸</span>
-            <span>{session.court_count} court{session.court_count !== 1 ? 's' : ''} · max {session.max_participants}</span>
+            <span>{session.court_count}片场地 · {session.max_participants}人满员</span>
           </div>
           {session.fee_per_person != null && (
             <div className="flex gap-2"><span>💵</span>
-              <span>${session.fee_per_person}/person · {session.late_withdraw_ratio * 100}% late penalty</span>
+              <span>${session.fee_per_person}/人 · 迟退违约{session.late_withdraw_ratio * 100}%</span>
             </div>
           )}
         </div>
@@ -226,7 +226,7 @@ export default function SessionDetailClient({
           <button onClick={handleLock} disabled={locking}
             className="w-full mt-2 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold
                        active:bg-blue-700 disabled:opacity-50 transition-colors">
-            {locking ? 'Locking…' : '🔒 Lock & Finalize Queue'}
+            {locking ? '锁定中…' : '🔒 锁定接龙'}
           </button>
         )}
 
@@ -237,29 +237,28 @@ export default function SessionDetailClient({
       {/* Join section */}
       {session.status === 'open' && (
         <div className="card space-y-3">
-          <h2 className="font-semibold text-gray-900">Join Queue</h2>
+          <h2 className="font-semibold text-gray-900">加入接龙</h2>
           {currentUser ? (
             <>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">
-                  Your entry name (edit to add +1, +2 for extra slots)
+                  报名名称（可改为 +1、+2 多次报名）
                 </label>
                 <input className="input" value={joinName} onChange={e => setJoinName(e.target.value)} />
               </div>
               <button onClick={handleJoin} disabled={joining} className="btn-primary">
-                {joining ? 'Joining…' : `Join as "${joinName}"`}
+                {joining ? '加入中…' : `以"${joinName}"加入`}
               </button>
               {myActiveEntries.length > 0 && (
                 <p className="text-xs text-gray-400 text-center">
-                  You have {myActiveEntries.length} active entr{myActiveEntries.length === 1 ? 'y' : 'ies'}.
-                  Tap – next to withdraw one.
+                  已有 {myActiveEntries.length} 个报名，点击 – 可撤回。
                 </p>
               )}
             </>
           ) : (
             <a href={`/login?next=/sessions/${session.id}`}
                className="btn-primary text-center block py-3 rounded-xl bg-brand-600 text-white font-semibold">
-              Sign in to Join
+              登录后加入
             </a>
           )}
         </div>
@@ -267,7 +266,7 @@ export default function SessionDetailClient({
 
       {session.status === 'locked' && (
         <div className="text-center text-sm text-gray-400 py-2">
-          🔒 Queue is locked — join/withdraw disabled
+          🔒 接龙已锁定，无法加入或撤回
         </div>
       )}
 
@@ -275,12 +274,12 @@ export default function SessionDetailClient({
       <div className="card space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">
-            Participants ({joined.length}/{session.max_participants})
+            已报名（{joined.length}/{session.max_participants}）
           </h2>
         </div>
 
         {joined.length === 0 && waitlist.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">No one yet — be the first!</p>
+          <p className="text-sm text-gray-400 py-4 text-center">暂无报名，快来第一个！</p>
         ) : (
           <div className="space-y-1">
             {joined.map((p, i) => (
@@ -293,7 +292,7 @@ export default function SessionDetailClient({
             ))}
             {waitlist.length > 0 && (
               <>
-                <div className="text-xs text-brand-600 font-semibold pt-2 pb-1">— Waitlist —</div>
+                <div className="text-xs text-brand-600 font-semibold pt-2 pb-1">— 候补 —</div>
                 {waitlist.map((p, i) => (
                   <ParticipantRow key={p.id} p={p} rank={joined.length + i + 1}
                     isAdmin={isAdmin} isLocked={session.status === 'locked'}
@@ -311,7 +310,7 @@ export default function SessionDetailClient({
       {/* Withdrawn */}
       {withdrawn.length > 0 && (
         <div className="card space-y-2">
-          <h2 className="font-semibold text-gray-900 text-sm">Withdrawn</h2>
+          <h2 className="font-semibold text-gray-900 text-sm">已退出</h2>
           {withdrawn.map(p => (
             <div key={p.id} className="flex items-center justify-between text-sm py-1">
               <span className="text-gray-500 line-through">{p.display_name}</span>
@@ -480,12 +479,12 @@ function PaymentSection({
 
   return (
     <div className="card space-y-4">
-      <h2 className="font-semibold text-gray-900">💳 Payments</h2>
+      <h2 className="font-semibold text-gray-900">💳 付款</h2>
 
       {/* Pay-to rows */}
       {paymentMethods.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">Pay to</p>
+          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">付款给</p>
           {paymentMethods.map(method => (
             <div key={method.id} className="flex items-center justify-between gap-3">
               <div>
@@ -494,13 +493,13 @@ function PaymentSection({
               </div>
               <div className="shrink-0 text-right">
                 {myTotal > 0 && (
-                  <p className="text-xs text-gray-500 mb-1">Amount: <strong>${myTotal.toFixed(2)}</strong></p>
+                  <p className="text-xs text-gray-500 mb-1">金额：<strong>${myTotal.toFixed(2)}</strong></p>
                 )}
                 <a href={venmoUrl(method.account_ref)}
                    target="_blank" rel="noopener noreferrer"
                    className="inline-block px-4 py-2 rounded-xl text-sm font-bold text-white
                               bg-[#008CFF] active:opacity-80 transition-opacity">
-                  Pay on Venmo
+                  Venmo 付款
                 </a>
               </div>
             </div>
@@ -513,19 +512,19 @@ function PaymentSection({
         <div>
           {!showForm ? (
             <button onClick={() => setShowForm(true)} className="text-sm text-brand-600 font-semibold">
-              + Add payment receiver
+              + 添加收款人
             </button>
           ) : (
             <div className="space-y-3 border border-gray-100 rounded-xl p-3">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Who should participants pay?
+                选择收款人
               </p>
 
               {/* User search */}
               <div className="relative">
                 <input
                   className="input"
-                  placeholder="Search by name…"
+                  placeholder="搜索参与者…"
                   value={search}
                   onChange={e => { setSearch(e.target.value); setSelected(null); setDropOpen(true) }}
                   onFocus={() => setDropOpen(true)}
@@ -558,8 +557,8 @@ function PaymentSection({
                   <label className="text-xs text-gray-500 mb-1 block">
                     Venmo ID
                     {selected.profile?.venmo_username
-                      ? <span className="ml-1 text-brand-600">(from profile)</span>
-                      : <span className="ml-1 text-orange-500">(not set — enter manually)</span>
+                      ? <span className="ml-1 text-brand-600">（来自个人资料）</span>
+                      : <span className="ml-1 text-orange-500">（未设置，请手动填写）</span>
                     }
                   </label>
                   <div className="relative">
@@ -578,11 +577,11 @@ function PaymentSection({
                 <button onClick={saveMethod} disabled={saving || !selected || !venmoId.trim()}
                   className="flex-1 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold
                              disabled:opacity-40 transition-opacity">
-                  {saving ? 'Saving…' : 'Add'}
+                  {saving ? '保存中…' : '添加'}
                 </button>
                 <button onClick={resetForm}
                   className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">
-                  Cancel
+                  取消
                 </button>
               </div>
             </div>
@@ -593,7 +592,7 @@ function PaymentSection({
       {/* Payment records */}
       {paymentRecords.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-gray-100">
-          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">Records</p>
+          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">付款记录</p>
           {participants.map(p => {
             const record = paymentRecords.find(r => r.participant_id === p.id)
             if (!record) return null
@@ -636,7 +635,7 @@ function ShareButton({ sessionId }: { sessionId: string }) {
     <button onClick={share}
       className="w-full py-2 text-sm font-medium text-gray-500 border border-gray-200
                  rounded-xl active:bg-gray-50 transition-colors">
-      {copied ? '✅ Link copied!' : '🔗 Share invite link'}
+      {copied ? '✅ 已复制链接！' : '🔗 分享邀请链接'}
     </button>
   )
 }

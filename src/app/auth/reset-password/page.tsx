@@ -16,8 +16,8 @@ export default function ResetPasswordPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (password.length < 6)        { setError('Password must be at least 6 characters'); return }
-    if (password !== password2)     { setError('Passwords do not match'); return }
+    if (password.length < 6)        { setError('密码至少需要 6 位'); return }
+    if (password !== password2)     { setError('两次密码不一致'); return }
 
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
@@ -33,22 +33,22 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
           <div className="text-6xl">🔑</div>
-          <h1 className="text-2xl font-bold text-gray-900">Set new password</h1>
+          <h1 className="text-2xl font-bold text-gray-900">设置新密码</h1>
         </div>
 
         <div className="card">
           <form onSubmit={submit} className="space-y-3">
             <input
-              type="password" className="input" placeholder="New password"
+              type="password" className="input" placeholder="新密码"
               value={password} onChange={e => setPassword(e.target.value)} required
             />
             <input
-              type="password" className="input" placeholder="Confirm password"
+              type="password" className="input" placeholder="确认密码"
               value={password2} onChange={e => setPassword2(e.target.value)} required
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary">
-              {loading ? 'Saving…' : 'Set password'}
+              {loading ? '保存中…' : '设置密码'}
             </button>
           </form>
         </div>

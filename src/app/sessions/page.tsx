@@ -56,12 +56,12 @@ export default async function SessionsPage() {
 
         {/* Active sessions */}
         <section>
-          <h1 className="text-xl font-bold text-gray-900 mb-4">接龙 Sessions</h1>
+          <h1 className="text-xl font-bold text-gray-900 mb-4">接龙</h1>
           {active.length === 0 ? (
             <div className="card text-center py-10 text-gray-400">
               <p className="text-3xl mb-2">🏸</p>
-              <p className="text-sm">No upcoming sessions</p>
-              <p className="text-xs mt-1">Create one and invite your crew!</p>
+              <p className="text-sm">暂无活动场次</p>
+              <p className="text-xs mt-1">快来创建一场吧！</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -76,7 +76,7 @@ export default async function SessionsPage() {
         {past.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              过往 History
+              往期
             </h2>
             <div className="space-y-3">
               {past.map(s => (

@@ -34,17 +34,21 @@ export default function SessionCard({ session, joinedCount }: Props) {
         <div className="space-y-1.5 text-sm text-gray-500">
           <div className="flex items-center gap-2">
             <span>📅</span>
-            <span>{formatSessionDate(session.starts_at)}</span>
+            <span suppressHydrationWarning>{formatSessionDate(session.starts_at)}</span>
           </div>
           <div className="flex items-center gap-2">
             <span>📍</span>
             <span className="truncate">{session.location}</span>
           </div>
+          <div className="flex items-center gap-2">
+            <span>🏸</span>
+            <span>{session.court_count}片场地 · 最多{session.max_participants}人</span>
+          </div>
         </div>
 
         {/* Footer */}
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-          <span>by {session.initiator.nickname}</span>
+          <span>发起：{session.initiator.nickname}</span>
           <span className="flex items-center gap-1 text-brand-600 font-semibold">
             <span>👥</span>
             <span>

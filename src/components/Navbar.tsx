@@ -28,7 +28,7 @@ export default async function Navbar() {
                 className="text-sm font-semibold text-white bg-brand-600 px-3 py-1.5 rounded-lg
                            active:bg-brand-700 transition-colors"
               >
-                + New
+                + 新建
               </Link>
               <Link href="/profile" className="flex items-center gap-1.5 text-sm text-gray-600">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -40,7 +40,7 @@ export default async function Navbar() {
               href="/login"
               className="text-sm font-semibold text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg"
             >
-              Sign in
+              登录
             </Link>
           )}
         </div>

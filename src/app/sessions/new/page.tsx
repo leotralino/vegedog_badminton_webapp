@@ -94,21 +94,21 @@ export default function NewSessionPage() {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">Create Session</h1>
+        <h1 className="text-xl font-bold text-gray-900 mb-6">创建场次</h1>
 
         <form onSubmit={submit} className="space-y-4">
 
           {/* Basic */}
           <div className="card space-y-3">
-            <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">Basic</h2>
+            <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">基本信息</h2>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Title</label>
-              <input className="input" placeholder="Friday Night Badminton"
+              <label className="text-sm font-medium text-gray-700 mb-1 block">标题</label>
+              <input className="input" placeholder="周五夜场羽毛球"
                 value={form.title} onChange={e => set('title', e.target.value)} required />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Location</label>
-              <input className="input" placeholder="Sunnyvale Community Center"
+              <label className="text-sm font-medium text-gray-700 mb-1 block">地点</label>
+              <input className="input" placeholder="阳光谷社区中心"
                 value={form.location} onChange={e => set('location', e.target.value)} required />
             </div>
           </div>
@@ -116,17 +116,17 @@ export default function NewSessionPage() {
           {/* Schedule */}
           <div className="card space-y-3">
             <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">
-              Schedule <span className="font-normal normal-case text-gray-400">(Pacific Time)</span>
+              时间 <span className="font-normal normal-case text-gray-400">（太平洋时区）</span>
             </h2>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Starts at</label>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">开始时间</label>
               <input type="datetime-local" className="input"
                 value={form.starts_at}
                 step={900}
                 onChange={e => handleStartsAtChange(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Withdraw deadline</label>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">退出截止时间</label>
               <input type="datetime-local" className="input"
                 value={form.withdraw_deadline}
                 step={900}
@@ -137,16 +137,16 @@ export default function NewSessionPage() {
 
           {/* Capacity */}
           <div className="card space-y-3">
-            <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">Capacity</h2>
+            <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">人数</h2>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Courts</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">场地数</label>
                 <input type="number" className="input" min="1" max="20"
                   value={form.court_count}
                   onChange={e => set('court_count', e.target.value)} />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Max players</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">最大人数</label>
                 <input type="number" className="input" min="1" max="200"
                   value={form.max_participants}
                   onChange={e => set('max_participants', e.target.value)} />
@@ -156,23 +156,23 @@ export default function NewSessionPage() {
 
           {/* Fee */}
           <div className="card space-y-3">
-            <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">Fee</h2>
+            <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">费用</h2>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Per person ($)</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">每人（$）</label>
                 <input type="number" className="input" min="0" step="0.5"
                   value={form.fee_per_person}
                   onChange={e => set('fee_per_person', e.target.value)} />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Late penalty (0–1)</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">迟退违约比例（0–1）</label>
                 <input type="number" className="input" min="0" max="1" step="0.1"
                   value={form.late_withdraw_ratio}
                   onChange={e => set('late_withdraw_ratio', e.target.value)} />
               </div>
             </div>
             <p className="text-xs text-gray-400">
-              A late ratio of 1 means the full fee is charged on late withdrawal.
+              比例为 1 表示迟退需支付全额费用。
             </p>
           </div>
 
@@ -181,7 +181,7 @@ export default function NewSessionPage() {
           )}
 
           <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? 'Creating…' : 'Create Session'}
+            {saving ? '创建中…' : '创建场次'}
           </button>
 
         </form>

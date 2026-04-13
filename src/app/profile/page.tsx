@@ -46,7 +46,7 @@ export default function ProfilePage() {
     e.preventDefault()
     setError('')
     setSuccess('')
-    if (!nickname.trim()) { setError('Nickname is required'); return }
+    if (!nickname.trim()) { setError('昵称不能为空'); return }
 
     setSaving(true)
     try {
@@ -64,7 +64,7 @@ export default function ProfilePage() {
         })
 
       if (dbErr) throw dbErr
-      setSuccess('Profile saved!')
+      setSuccess('已保存')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -87,7 +87,7 @@ export default function ProfilePage() {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        <h1 className="text-xl font-bold text-gray-900">Profile</h1>
+        <h1 className="text-xl font-bold text-gray-900">个人资料</h1>
 
         {/* Avatar */}
         {avatarUrl && (
@@ -104,14 +104,14 @@ export default function ProfilePage() {
         <form onSubmit={save} className="space-y-4">
           <div className="card space-y-3">
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Email</label>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">邮箱</label>
               <input className="input bg-gray-50 cursor-not-allowed" value={email} disabled />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Nickname *</label>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">昵称 *</label>
               <input
                 className="input"
-                placeholder="How others see you"
+                placeholder="别人看到的名字"
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
                 required
@@ -119,8 +119,8 @@ export default function ProfilePage() {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">
-                Venmo username
-                <span className="ml-1 font-normal text-gray-400">(optional)</span>
+                Venmo 账号
+                <span className="ml-1 font-normal text-gray-400">（选填）</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
@@ -132,7 +132,7 @@ export default function ProfilePage() {
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                Others will see a Pay button when you&apos;re in a session
+                其他人在场次中可以看到你的付款按钮
               </p>
             </div>
           </div>
@@ -141,7 +141,7 @@ export default function ProfilePage() {
           {success && <p className="text-sm text-green-600 bg-green-50 rounded-xl px-4 py-3">{success}</p>}
 
           <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? '保存中…' : '保存'}
           </button>
         </form>
 
@@ -150,7 +150,7 @@ export default function ProfilePage() {
             onClick={signOut}
             className="w-full text-sm text-red-500 font-medium py-1 hover:text-red-700 transition-colors"
           >
-            Sign out
+            退出登录
           </button>
         </div>
     </main>
