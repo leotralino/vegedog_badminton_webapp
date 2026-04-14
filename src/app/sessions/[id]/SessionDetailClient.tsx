@@ -533,7 +533,7 @@ export default function SessionDetailClient({
                   <div key={p.id}
                     ref={el => { if (el) rowRefs.current.set(p.id, el); else rowRefs.current.delete(p.id) }}>
                     <ParticipantRow p={p} rank={joined.length + i + 1}
-                      isAdmin={isAdmin} isLocked={session.status === 'locked'}
+                      isAdmin={isAdmin} isLocked={false}
                       isOwn={currentUser?.id === p.user_id}
                       payRecord={payRecords.find(r => r.participant_id === p.id)}
                       onWithdraw={() => handleWithdraw(p.id)}
