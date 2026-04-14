@@ -637,9 +637,19 @@ function PaymentSection({
   const myTotal = paymentRecords.filter(r => myIds.includes(r.participant_id))
     .reduce((s, r) => s + r.base_fee + r.late_fee, 0)
 
+  const allPaid = paymentRecords.length > 0 && paymentRecords.every(r => r.status === 'paid')
+
   return (
     <div className="card space-y-4">
       <h2 className="font-semibold text-gray-900">💳 付款</h2>
+
+      {/* All-paid celebration banner */}
+      {allPaid && (
+        <div className="flex flex-col items-center gap-1 py-2">
+          <span className="text-3xl">🎆</span>
+          <p className="text-sm font-semibold text-green-600">都已转账！</p>
+        </div>
+      )}
 
       {/* Pay-to rows */}
       {paymentMethods.length > 0 && (
