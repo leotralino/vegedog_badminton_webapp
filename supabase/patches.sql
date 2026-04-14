@@ -168,3 +168,7 @@ where s.status in ('locked', 'closed')
   and not exists (
     select 1 from public.payment_records r where r.participant_id = p.id
   );
+
+-- Fix 10: Add amount column to payment_methods (amount per person for this payee)
+alter table public.payment_methods
+  add column if not exists amount numeric(10,2) default null;

@@ -591,6 +591,7 @@ function PaymentSection({
   const [search,    setSearch]    = useState('')
   const [selected,  setSelected]  = useState<ParticipantWithProfile | null>(null)
   const [venmoId,   setVenmoId]   = useState('')
+  const [amount,    setAmount]    = useState('')
   const [saving,    setSaving]    = useState(false)
   const [dropOpen,  setDropOpen]  = useState(false)
 
@@ -610,13 +611,14 @@ function PaymentSection({
   }
 
   function resetForm() {
-    setShowForm(false); setSelected(null); setSearch(''); setVenmoId(''); setDropOpen(false)
+    setShowForm(false); setSelected(null); setSearch(''); setVenmoId(''); setAmount(''); setDropOpen(false)
   }
 
   async function saveMethod() {
     if (!selected || !currentUserId) return
     const ref = venmoId.trim().replace(/^@/, '')
     if (!ref) return
+    const parsedAmount = parseFloat(amount)
     setSaving(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.from('payment_methods') as any)
@@ -625,17 +627,13 @@ function PaymentSection({
         type:        'venmo',
         label:       selected.profile?.nickname ?? selected.display_name,
         account_ref: ref,
+        amount:      isNaN(parsedAmount) || parsedAmount <= 0 ? null : parsedAmount,
         created_by:  currentUserId,
       })
       .select().single() as { data: PaymentMethod | null; error: unknown }
     setSaving(false)
     if (!error && data) { onMethodAdded(data); resetForm() }
   }
-
-  // Amount owed by current user
-  const myIds   = currentUserId ? participants.filter(p => p.user_id === currentUserId).map(p => p.id) : []
-  const myTotal = paymentRecords.filter(r => myIds.includes(r.participant_id))
-    .reduce((s, r) => s + r.base_fee + r.late_fee, 0)
 
   const allPaid = paymentRecords.length > 0 && paymentRecords.every(r => r.status === 'paid')
 
@@ -662,8 +660,8 @@ function PaymentSection({
                 <p className="text-xs text-gray-400">@{method.account_ref}</p>
               </div>
               <div className="shrink-0 text-right">
-                {myTotal > 0 && (
-                  <p className="text-xs text-gray-500 mb-1">金额：<strong>${myTotal.toFixed(2)}</strong></p>
+                {method.amount != null && (
+                  <p className="text-xs text-gray-500 mb-1">金额：<strong>${method.amount.toFixed(2)}</strong></p>
                 )}
                 <a href={venmoUrl(method.account_ref)}
                    target="_blank" rel="noopener noreferrer"
@@ -721,26 +719,41 @@ function PaymentSection({
                 )}
               </div>
 
-              {/* Venmo ID — pre-filled from profile or blank */}
+              {/* Venmo ID + Amount — pre-filled from profile or blank */}
               {selected && (
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">
-                    Venmo ID
-                    {selected.profile?.venmo_username
-                      ? <span className="ml-1 text-brand-600">（来自个人资料）</span>
-                      : <span className="ml-1 text-orange-500">（未设置，请手动填写）</span>
-                    }
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
-                    <input
-                      className="input pl-7"
-                      placeholder="venmo-handle"
-                      value={venmoId}
-                      onChange={e => setVenmoId(e.target.value.replace(/^@/, ''))}
-                    />
+                <>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">
+                      Venmo ID
+                      {selected.profile?.venmo_username
+                        ? <span className="ml-1 text-brand-600">（来自个人资料）</span>
+                        : <span className="ml-1 text-orange-500">（未设置，请手动填写）</span>
+                      }
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                      <input
+                        className="input pl-7"
+                        placeholder="venmo-handle"
+                        value={venmoId}
+                        onChange={e => setVenmoId(e.target.value.replace(/^@/, ''))}
+                      />
+                    </div>
                   </div>
-                </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">金额（每人应付）</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <input
+                        className="input pl-7"
+                        placeholder="0.00"
+                        inputMode="decimal"
+                        value={amount}
+                        onChange={e => setAmount(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </>
               )}
 
               <div className="flex gap-2">

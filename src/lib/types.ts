@@ -78,6 +78,7 @@ export interface PaymentMethod {
   type:        PaymentMethodType
   label:       string
   account_ref: string
+  amount:      number | null
   created_by:  string
   created_at:  string
 }
