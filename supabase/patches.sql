@@ -134,8 +134,31 @@ drop policy if exists "records_upsert_admin" on public.payment_records;
 create policy "payment_records_select_authenticated" on public.payment_records
   for select using (auth.role() = 'authenticated');
 
--- Fix 9: Backfill payment records (unpaid) for already-locked sessions missing them.
--- Run once to initialize existing locked sessions.
+-- Fix 9: DB trigger — auto-initialize payment records when a session is locked.
+-- Runs server-side (security definer) so RLS does not block inserts for other users.
+create or replace function public.initialize_payment_records()
+returns trigger language plpgsql security definer as $$
+begin
+  if new.status = 'locked' and old.status != 'locked' then
+    insert into public.payment_records (session_id, participant_id, base_fee, late_fee, status)
+    select new.id, p.id, 0, 0, 'unpaid'
+    from public.participants p
+    where p.session_id = new.id
+      and p.status = 'joined'
+      and not exists (
+        select 1 from public.payment_records r where r.participant_id = p.id
+      );
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_session_locked on public.sessions;
+create trigger on_session_locked
+  after update on public.sessions
+  for each row execute function public.initialize_payment_records();
+
+-- Fix 9b: Backfill for sessions already locked before this trigger existed.
 insert into public.payment_records (session_id, participant_id, base_fee, late_fee, status)
 select p.session_id, p.id, 0, 0, 'unpaid'
 from public.participants p

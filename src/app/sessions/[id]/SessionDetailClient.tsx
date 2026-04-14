@@ -196,20 +196,9 @@ export default function SessionDetailClient({
     const { error } = await (supabase.from('sessions') as any)
       .update({ status: 'locked' })
       .eq('id', session.id)
-    if (error) { setLocking(false); showToast(error.message, false); return }
-
-    // Auto-initialize payment records (unpaid) for all joined participants
-    const joinedPs = participants.filter(p => p.status === 'joined')
-    const existingParticipantIds = payRecords.map(r => r.participant_id)
-    const toInsert = joinedPs
-      .filter(p => !existingParticipantIds.includes(p.id))
-      .map(p => ({ session_id: session.id, participant_id: p.id, base_fee: 0, late_fee: 0, status: 'unpaid' }))
-    if (toInsert.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('payment_records') as any).insert(toInsert)
-    }
-
     setLocking(false)
+    if (error) { showToast(error.message, false); return }
+    // Payment records are auto-initialized by DB trigger on_session_locked
     showToast('接龙已锁定 🔒')
     router.refresh()
   }
