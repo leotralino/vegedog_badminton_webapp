@@ -274,11 +274,16 @@ export default function SessionDetailClient({
   }
 
   // ── Participant search (admin, locked) ───────────────────────────────
-  const [searchOpen,  setSearchOpen]  = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [matchIdx,    setMatchIdx]    = useState(0)
+  const [searchOpen,       setSearchOpen]       = useState(false)
+  const [searchQuery,      setSearchQuery]      = useState('')
+  const [matchIdx,         setMatchIdx]         = useState(0)
+  const [dropdownVisible,  setDropdownVisible]  = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map())
+
+  function closeSearch() {
+    setSearchOpen(false); setSearchQuery(''); setMatchIdx(0); setDropdownVisible(false)
+  }
 
   function fuzzyMatch(name: string, query: string): boolean {
     const n = name.toLowerCase(), q = query.toLowerCase()
@@ -440,7 +445,7 @@ export default function SessionDetailClient({
           {/* Admin search — locked sessions only */}
           {isAdmin && session.status === 'locked' && (
             <button
-              onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setMatchIdx(0) }}
+              onClick={() => searchOpen ? closeSearch() : setSearchOpen(true)}
               className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors
                           ${searchOpen ? 'bg-brand-100 text-brand-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -449,64 +454,6 @@ export default function SessionDetailClient({
             </button>
           )}
         </div>
-
-        {/* Search input + dropdown */}
-        {searchOpen && (
-          <div className="relative">
-            <div className="relative">
-              <input
-                ref={searchInputRef}
-                value={searchQuery}
-                onChange={e => { setSearchQuery(e.target.value); setMatchIdx(0) }}
-                placeholder="搜索参与者姓名…"
-                className="input text-sm pr-8"
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            {/* Results dropdown */}
-            {searchMatches.length > 0 && (
-              <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-gray-100
-                              rounded-xl shadow-lg overflow-hidden">
-                {searchMatches.map((p, i) => (
-                  <button key={p.id}
-                    onMouseDown={() => { setMatchIdx(i); setSearchQuery('') }}
-                    className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 transition-colors
-                                ${i === safeMatchIdx ? 'bg-brand-50' : 'hover:bg-gray-50'}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
-                      alt="" className="w-5 h-5 rounded-full bg-gray-100 shrink-0"/>
-                    <span className="font-medium">{p.display_name}</span>
-                    {p.profile?.nickname && p.profile.nickname !== p.display_name && (
-                      <span className="text-xs text-gray-400">{p.profile.nickname}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-            {searchQuery.trim() && searchMatches.length === 0 && (
-              <p className="text-xs text-gray-400 mt-1.5 px-1">无匹配结果</p>
-            )}
-
-            {/* Cycle counter — shown when query is cleared but match is active */}
-            {!searchQuery && currentMatchId && (
-              <div className="flex items-center justify-end gap-1 mt-1">
-                <span className="text-xs text-gray-400">{safeMatchIdx + 1} / {searchMatches.length}</span>
-                <button onClick={() => setMatchIdx(i => (i - 1 + searchMatches.length) % searchMatches.length)}
-                  className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 text-xs">↑</button>
-                <button onClick={() => setMatchIdx(i => (i + 1) % searchMatches.length)}
-                  className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 text-xs">↓</button>
-              </div>
-            )}
-          </div>
-        )}
 
         {joined.length === 0 && waitlist.length === 0 ? (
           <p className="text-sm text-gray-400 py-4 text-center">暂无报名，快来第一个！</p>
@@ -600,6 +547,85 @@ export default function SessionDetailClient({
           onMethodUpdated={m => setPaymentMethods(prev => prev.map(x => x.id === m.id ? m : x))}
           onMethodRemoved={id => setPaymentMethods(prev => prev.filter(x => x.id !== id))}
         />
+      )}
+
+      {/* ── Floating participant search overlay (admin, locked) ─────────── */}
+      {searchOpen && (
+        <>
+          {/* Dim backdrop — tap to close */}
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={closeSearch} />
+
+          {/* Floating panel anchored to bottom of viewport */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-6">
+
+            {/* Candidates panel — expands upward above the input */}
+            {dropdownVisible && searchMatches.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-2xl mb-1
+                              overflow-hidden max-h-56 overflow-y-auto">
+                {searchMatches.map((p, i) => (
+                  <button key={p.id}
+                    onMouseDown={() => { setMatchIdx(i); setDropdownVisible(false) }}
+                    className={`w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors
+                                ${i === safeMatchIdx ? 'bg-brand-50' : 'hover:bg-gray-50'}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
+                      alt="" className="w-7 h-7 rounded-full bg-gray-100 shrink-0 object-cover"/>
+                    <span className="font-medium">{p.display_name}</span>
+                    {p.profile?.nickname && p.profile.nickname !== p.display_name && (
+                      <span className="text-xs text-gray-400">{p.profile.nickname}</span>
+                    )}
+                    {i === safeMatchIdx && (
+                      <span className="ml-auto text-brand-600">
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* No results hint */}
+            {searchQuery.trim() && searchMatches.length === 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-2xl mb-1 px-4 py-3">
+                <p className="text-sm text-gray-400">无匹配结果</p>
+              </div>
+            )}
+
+            {/* Search input bar */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-2xl
+                            flex items-center gap-2 px-3 py-2.5">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400 shrink-0">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd"/>
+              </svg>
+              <input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setMatchIdx(0); setDropdownVisible(true) }}
+                placeholder="搜索参与者姓名…"
+                className="flex-1 text-sm outline-none bg-transparent"
+              />
+              {/* Cycle counter when a match is active */}
+              {currentMatchId && searchMatches.length > 0 && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-xs text-gray-400">{safeMatchIdx + 1}/{searchMatches.length}</span>
+                  <button onClick={() => setMatchIdx(i => (i - 1 + searchMatches.length) % searchMatches.length)}
+                    className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 text-xs">↑</button>
+                  <button onClick={() => setMatchIdx(i => (i + 1) % searchMatches.length)}
+                    className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 text-xs">↓</button>
+                </div>
+              )}
+              {/* Close */}
+              <button onClick={closeSearch}
+                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
