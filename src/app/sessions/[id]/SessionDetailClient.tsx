@@ -338,9 +338,12 @@ export default function SessionDetailClient({
       <div className="card space-y-3">
         <div className="flex items-start justify-between gap-2">
           <h1 className="text-xl font-bold text-gray-900 leading-tight">{session.title}</h1>
-          <span className={`badge shrink-0 ${STATUS_CLASS[session.status]}`}>
-            {STATUS_LABEL[session.status]}
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className={`badge ${STATUS_CLASS[session.status]}`}>
+              {STATUS_LABEL[session.status]}
+            </span>
+            <ShareButton sessionId={session.id} />
+          </div>
         </div>
 
         <div className="space-y-1.5 text-sm text-gray-600">
@@ -388,8 +391,6 @@ export default function SessionDetailClient({
           </button>
         )}
 
-        {/* Share link */}
-        <ShareButton sessionId={session.id} />
       </div>
 
       {/* Notes card — below meta */}
@@ -1049,10 +1050,22 @@ function ShareButton({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <button onClick={share}
-      className="w-full py-2 text-sm font-medium text-gray-500 border border-gray-200
-                 rounded-xl active:bg-gray-50 transition-colors">
-      {copied ? '✅ 已复制链接！' : '🔗 分享邀请链接'}
+    <button onClick={share} title="分享邀请链接"
+      className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors
+                 text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:bg-gray-200">
+      {copied ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-green-500">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+          <polyline points="16 6 12 2 8 6"/>
+          <line x1="12" y1="2" x2="12" y2="15"/>
+        </svg>
+      )}
     </button>
   )
 }
