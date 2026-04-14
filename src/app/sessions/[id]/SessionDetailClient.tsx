@@ -249,7 +249,7 @@ export default function SessionDetailClient({
                   base_fee: 0, late_fee: 0, status: 'paid' })
         .select().single() as { data: PaymentRecord | null; error: unknown }
       if (error) {
-        showToast(error.message, false)
+        showToast(error instanceof Error ? error.message : '出现错误', false)
         setPayRecords(prev => prev.filter(r => r.id !== tempId))
       } else if (data) {
         setPayRecords(prev => prev.map(r => r.id === tempId ? data : r))
