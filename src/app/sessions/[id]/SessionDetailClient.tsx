@@ -518,7 +518,9 @@ export default function SessionDetailClient({
                 className={`rounded-lg transition-colors duration-300
                             ${p.id === currentMatchId ? 'bg-yellow-50 ring-1 ring-yellow-300' : ''}`}>
                 <ParticipantRow p={p} rank={i+1}
-                  isAdmin={isAdmin} isLocked={session.status === 'locked'}
+                  isAdmin={isAdmin}
+                  isLocked={session.status === 'locked' || session.status === 'closed'}
+                  allowActions={session.status === 'locked'}
                   isOwn={currentUser?.id === p.user_id}
                   payRecord={payRecords.find(r => r.participant_id === p.id)}
                   onWithdraw={() => handleWithdraw(p.id)}
@@ -533,7 +535,9 @@ export default function SessionDetailClient({
                   <div key={p.id}
                     ref={el => { if (el) rowRefs.current.set(p.id, el); else rowRefs.current.delete(p.id) }}>
                     <ParticipantRow p={p} rank={joined.length + i + 1}
-                      isAdmin={isAdmin} isLocked={false}
+                      isAdmin={isAdmin}
+                      isLocked={session.status === 'locked' || session.status === 'closed'}
+                      allowActions={false}
                       isOwn={currentUser?.id === p.user_id}
                       payRecord={payRecords.find(r => r.participant_id === p.id)}
                       onWithdraw={() => handleWithdraw(p.id)}
@@ -603,13 +607,14 @@ export default function SessionDetailClient({
 
 // ── Participant row ────────────────────────────────────────────────────────
 function ParticipantRow({
-  p, rank, isAdmin, isLocked, isOwn, payRecord,
+  p, rank, isAdmin, isLocked, allowActions, isOwn, payRecord,
   onWithdraw, onToggleLate, onTogglePayment,
 }: {
   p: ParticipantWithProfile
   rank: number
   isAdmin: boolean
-  isLocked: boolean
+  isLocked: boolean      // session is locked/closed — suppresses withdraw
+  allowActions: boolean  // true only for joined rows in locked session — enables +时 and payment
   isOwn: boolean
   payRecord?: PaymentRecord
   onWithdraw: () => void
@@ -644,8 +649,8 @@ function ParticipantRow({
 
       {/* Actions */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* Stayed late toggle (admin, locked) */}
-        {isAdmin && isLocked && (
+        {/* Stayed late toggle — joined rows only, admin, locked session */}
+        {isAdmin && allowActions && (
           <button onClick={onToggleLate}
             className={`text-xs px-2 py-1 rounded-lg font-medium
               ${p.stayed_late
@@ -655,8 +660,8 @@ function ParticipantRow({
           </button>
         )}
 
-        {/* Self-service payment toggle — own entries only, when locked */}
-        {isOwn && isLocked && (
+        {/* Self-service payment toggle — own joined rows only */}
+        {isOwn && allowActions && (
           <button onClick={onTogglePayment}
             className={`text-xs px-2 py-1 rounded-lg font-medium
               ${payRecord?.status === 'paid'
@@ -666,14 +671,14 @@ function ParticipantRow({
           </button>
         )}
 
-        {/* Read-only payment status badge — others always, own entry when not actively locked */}
-        {(!isOwn || !isLocked) && payRecord && (
+        {/* Read-only payment badge — when actions not available but record exists */}
+        {!allowActions && payRecord && (
           <span className={`badge ${PAY_CLASS[payRecord.status]}`}>
             {PAY_LABEL[payRecord.status]}
           </span>
         )}
 
-        {/* Withdraw (own entries, unlocked) */}
+        {/* Withdraw — own entries, session not locked */}
         {isOwn && !isLocked && (
           <button onClick={onWithdraw}
             className="w-7 h-7 flex items-center justify-center text-red-400 hover:text-red-600 active:scale-95">
