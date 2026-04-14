@@ -5,24 +5,23 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Framework-Next.js%2015-black?style=flat-square&logo=next.js" alt="Next.js 15">
-  <img src="https://img.shields.io/badge/Database-Supabase-3ECF8E?style=flat-square&logo=supabase" alt="Supabase">
-  <img src="https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat-square&logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/Styling-Tailwind%20CSS-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind CSS">
-  <img src="https://img.shields.io/badge/Deployment-Vercel-000000?style=flat-square&logo=vercel" alt="Vercel">
+  <img src="https://img.shields.io/badge/Framework-Next.js%2015-black?style=flat&logo=next.js" alt="Next.js 15">
+  <img src="https://img.shields.io/badge/Database-Supabase-3ECF8E?style=flat&logo=supabase" alt="Supabase">
+  <img src="https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat&logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Styling-Tailwind%20CSS-06B6D4?style=flat&logo=tailwindcss" alt="Tailwind CSS">
+  <img src="https://img.shields.io/badge/Deployment-Vercel-000000?style=flat&logo=vercel" alt="Vercel">
 </p>
 
-<p align="center">
-  <a href="https://vegedog-badminton-webapp.vercel.app/">
-    <img src="https://img.shields.io/badge/🏸%20打开应用-vegedog--badminton--webapp.vercel.app-4F46E5?style=for-the-badge" alt="Open App">
-  </a>
-</p>
 
 **菜狗（VegDog）** 是一个基于 **Next.js + Supabase** 构建的全栈 Web 应用，旨在为菜狗羽毛球群提供简洁、高效的约球管理方案。
 
 本项目通过自动化流程取代传统的社交软件群接龙，解决了报名统计混乱、并发冲突、晚退判定困难以及收款对账繁琐等核心痛点。
 
----
+<p align="left">
+  <a href="https://vegedog-badminton-webapp.vercel.app/">
+    <img src="docs/open_app_btn.svg" alt="打开菜狗 App">
+  </a>
+</p>
 
 ## 📱 应用截图
 
