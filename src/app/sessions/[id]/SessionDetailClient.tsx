@@ -61,9 +61,15 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function venmoUrl(accountRef: string): string {
+function openVenmo(accountRef: string, amount?: number | null) {
   const username = accountRef.startsWith('@') ? accountRef.slice(1) : accountRef
-  return `https://venmo.com/${username}`
+  const params = new URLSearchParams({ txn: 'pay', recipients: username, note: 'VegDog Badminton' })
+  if (amount) params.set('amount', amount.toFixed(2))
+  // Try app deep link first; fall back to web if app not installed
+  window.location.href = `venmo://paycharge?${params}`
+  setTimeout(() => {
+    window.open(`https://venmo.com/${username}`, '_blank')
+  }, 1500)
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -878,12 +884,11 @@ function PaymentSection({
                 {method.amount != null && (
                   <span className="text-sm font-semibold text-gray-700">${method.amount.toFixed(2)}</span>
                 )}
-                <a href={venmoUrl(method.account_ref)}
-                   target="_blank" rel="noopener noreferrer"
-                   className="inline-block px-3 py-1.5 rounded-lg text-sm font-bold text-white
+                <button onClick={() => openVenmo(method.account_ref, method.amount)}
+                   className="px-3 py-1.5 rounded-lg text-sm font-bold text-white
                               bg-[#008CFF] active:opacity-80 transition-opacity">
                   Venmo 付款
-                </a>
+                </button>
               </div>
             </div>
           ))}
