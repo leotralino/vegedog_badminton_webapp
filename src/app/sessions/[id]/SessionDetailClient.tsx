@@ -63,7 +63,7 @@ function CopyButton({ text }: { text: string }) {
 
 function openVenmo(accountRef: string, amount?: number | null) {
   const username = accountRef.startsWith('@') ? accountRef.slice(1) : accountRef
-  const params = new URLSearchParams({ txn: 'pay', recipients: username, note: 'VegDog Badminton' })
+  const params = new URLSearchParams({ txn: 'pay', recipients: username, note: `菜狗 @${username}` })
   if (amount) params.set('amount', amount.toFixed(2))
   // Try app deep link first; fall back to web if app not installed
   window.location.href = `venmo://paycharge?${params}`
