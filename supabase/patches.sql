@@ -104,3 +104,24 @@ alter table public.sessions
 alter table public.sessions
   add constraint sessions_status_check
   check (status in ('open', 'locked', 'canceled', 'closed'));
+
+-- Fix 7: Allow users to self-report payment on their own participant entries
+drop policy if exists "payment_records_insert_own" on public.payment_records;
+create policy "payment_records_insert_own" on public.payment_records
+  for insert with check (
+    exists (
+      select 1 from public.participants
+      where participants.id = payment_records.participant_id
+        and participants.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "payment_records_update_own" on public.payment_records;
+create policy "payment_records_update_own" on public.payment_records
+  for update using (
+    exists (
+      select 1 from public.participants
+      where participants.id = payment_records.participant_id
+        and participants.user_id = auth.uid()
+    )
+  );

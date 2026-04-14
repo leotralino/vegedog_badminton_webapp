@@ -77,12 +77,13 @@ export default function SessionDetailClient({
   const supabase = createClient()
   const router   = useRouter()
 
-  const [participants, setParticipants]   = useState(initialParticipants)
-  const [paymentMethods, setPaymentMethods] = useState(initialMethods)
-  const [joinName, setJoinName]           = useState('')
-  const [joining, setJoining]             = useState(false)
-  const [locking, setLocking]             = useState(false)
-  const [toast, setToast]                 = useState<{ msg: string; ok: boolean } | null>(null)
+  const [participants,    setParticipants]    = useState(initialParticipants)
+  const [paymentMethods,  setPaymentMethods]  = useState(initialMethods)
+  const [payRecords,      setPayRecords]      = useState(paymentRecords)
+  const [joinName,  setJoinName]  = useState('')
+  const [joining,   setJoining]   = useState(false)
+  const [locking,   setLocking]   = useState(false)
+  const [toast,     setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
 
   const isAdmin = currentUser?.id === session.initiator_id
 
@@ -211,6 +212,49 @@ export default function SessionDetailClient({
       .update({ stayed_late: newVal })
       .eq('id', p.id)
     if (error) { showToast(error.message, false); refreshParticipants() }
+  }
+
+  // ── Self-service payment toggle ───────────────────────────────────────────
+  async function handleTogglePayment(participantId: string) {
+    if (!currentUser) return
+    const existing = payRecords.find(r => r.participant_id === participantId)
+    const newStatus: 'paid' | 'unpaid' = existing?.status === 'paid' ? 'unpaid' : 'paid'
+
+    if (existing) {
+      // Optimistic update then patch
+      setPayRecords(prev => prev.map(r =>
+        r.participant_id === participantId ? { ...r, status: newStatus } : r
+      ))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from('payment_records') as any)
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+      if (error) {
+        showToast(error.message, false)
+        setPayRecords(prev => prev.map(r =>
+          r.participant_id === participantId ? { ...r, status: existing.status } : r
+        ))
+      }
+    } else {
+      // No record yet — insert with status 'paid'
+      const tempId = `temp-${Date.now()}`
+      setPayRecords(prev => [...prev, {
+        id: tempId, session_id: session.id, participant_id: participantId,
+        base_fee: 0, late_fee: 0, status: 'paid', note: null,
+        updated_at: new Date().toISOString(),
+      }])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from('payment_records') as any)
+        .insert({ session_id: session.id, participant_id: participantId,
+                  base_fee: 0, late_fee: 0, status: 'paid' })
+        .select().single() as { data: PaymentRecord | null; error: unknown }
+      if (error) {
+        showToast(error.message, false)
+        setPayRecords(prev => prev.filter(r => r.id !== tempId))
+      } else if (data) {
+        setPayRecords(prev => prev.map(r => r.id === tempId ? data : r))
+      }
+    }
   }
 
   // ── Partition participants ────────────────────────────────────────────
@@ -354,9 +398,10 @@ export default function SessionDetailClient({
               <ParticipantRow key={p.id} p={p} rank={i+1}
                 isAdmin={isAdmin} isLocked={session.status === 'locked'}
                 isOwn={currentUser?.id === p.user_id}
-                payRecord={paymentRecords.find(r => r.participant_id === p.id)}
+                payRecord={payRecords.find(r => r.participant_id === p.id)}
                 onWithdraw={() => handleWithdraw(p.id)}
-                onToggleLate={() => handleToggleLate(p)} />
+                onToggleLate={() => handleToggleLate(p)}
+                onTogglePayment={() => handleTogglePayment(p.id)} />
             ))}
             {waitlist.length > 0 && (
               <>
@@ -365,9 +410,10 @@ export default function SessionDetailClient({
                   <ParticipantRow key={p.id} p={p} rank={joined.length + i + 1}
                     isAdmin={isAdmin} isLocked={session.status === 'locked'}
                     isOwn={currentUser?.id === p.user_id}
-                    payRecord={paymentRecords.find(r => r.participant_id === p.id)}
+                    payRecord={payRecords.find(r => r.participant_id === p.id)}
                     onWithdraw={() => handleWithdraw(p.id)}
-                    onToggleLate={() => handleToggleLate(p)} />
+                    onToggleLate={() => handleToggleLate(p)}
+                onTogglePayment={() => handleTogglePayment(p.id)} />
                 ))}
               </>
             )}
@@ -417,7 +463,7 @@ export default function SessionDetailClient({
           session={session}
           participants={[...joined, ...waitlist]}
           paymentMethods={paymentMethods}
-          paymentRecords={paymentRecords}
+          paymentRecords={payRecords}
           currentUserId={currentUser?.id}
           isAdmin={isAdmin}
           onMethodAdded={m => setPaymentMethods(prev => [...prev, m])}
@@ -430,7 +476,7 @@ export default function SessionDetailClient({
 // ── Participant row ────────────────────────────────────────────────────────
 function ParticipantRow({
   p, rank, isAdmin, isLocked, isOwn, payRecord,
-  onWithdraw, onToggleLate,
+  onWithdraw, onToggleLate, onTogglePayment,
 }: {
   p: ParticipantWithProfile
   rank: number
@@ -440,6 +486,7 @@ function ParticipantRow({
   payRecord?: PaymentRecord
   onWithdraw: () => void
   onToggleLate: () => void
+  onTogglePayment: () => void
 }) {
   return (
     <div className="flex items-center gap-3 py-1.5">
@@ -480,8 +527,19 @@ function ParticipantRow({
           </button>
         )}
 
-        {/* Payment status badge (admin sees all, others see own) */}
-        {payRecord && (
+        {/* Self-service payment toggle — own entries only, when locked */}
+        {isOwn && isLocked && (
+          <button onClick={onTogglePayment}
+            className={`text-xs px-2 py-1 rounded-lg font-medium
+              ${payRecord?.status === 'paid'
+                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
+            {payRecord?.status === 'paid' ? '已支付 ✓' : '未支付'}
+          </button>
+        )}
+
+        {/* Admin payment badge for other users' entries */}
+        {!isOwn && payRecord && (
           <span className={`badge ${PAY_CLASS[payRecord.status]}`}>
             {PAY_LABEL[payRecord.status]}
           </span>
