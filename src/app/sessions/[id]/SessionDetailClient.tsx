@@ -421,7 +421,7 @@ export default function SessionDetailClient({
           <div className="space-y-1">
             {joined.map((p, i) => (
               <ParticipantRow key={p.id} p={p} rank={i+1}
-                isAdmin={isAdmin} isLocked={session.status === 'locked' || session.status === 'closed'}
+                isAdmin={isAdmin} isLocked={session.status === 'locked'}
                 isOwn={currentUser?.id === p.user_id}
                 payRecord={payRecords.find(r => r.participant_id === p.id)}
                 onWithdraw={() => handleWithdraw(p.id)}
@@ -433,7 +433,7 @@ export default function SessionDetailClient({
                 <div className="text-xs text-brand-600 font-semibold pt-2 pb-1">— 候补 —</div>
                 {waitlist.map((p, i) => (
                   <ParticipantRow key={p.id} p={p} rank={joined.length + i + 1}
-                    isAdmin={isAdmin} isLocked={session.status === 'locked' || session.status === 'closed'}
+                    isAdmin={isAdmin} isLocked={session.status === 'locked'}
                     isOwn={currentUser?.id === p.user_id}
                     payRecord={payRecords.find(r => r.participant_id === p.id)}
                     onWithdraw={() => handleWithdraw(p.id)}
@@ -490,7 +490,7 @@ export default function SessionDetailClient({
           paymentMethods={paymentMethods}
           paymentRecords={payRecords}
           currentUserId={currentUser?.id}
-          isAdmin={isAdmin}
+          isAdmin={isAdmin && session.status !== 'closed'}
           onMethodAdded={m => setPaymentMethods(prev => [...prev, m])}
         />
       )}
@@ -563,8 +563,8 @@ function ParticipantRow({
           </button>
         )}
 
-        {/* Read-only payment status badge for other users' entries */}
-        {!isOwn && payRecord && (
+        {/* Read-only payment status badge — others always, own entry when not actively locked */}
+        {(!isOwn || !isLocked) && payRecord && (
           <span className={`badge ${PAY_CLASS[payRecord.status]}`}>
             {PAY_LABEL[payRecord.status]}
           </span>
