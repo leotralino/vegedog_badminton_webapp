@@ -390,6 +390,27 @@ export default function SessionDetailClient({
         </div>
       )}
 
+      {/* Stayed-late panel */}
+      {(session.status === 'locked' || session.status === 'closed') &&
+        participants.some(p => p.stayed_late) && (
+        <div className="card space-y-2">
+          <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
+            <span className="text-orange-500">⏰</span> +时名单
+          </h2>
+          {participants.filter(p => p.stayed_late).map(p => (
+            <div key={p.id} className="flex items-center gap-3 py-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={(p as any).profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
+                alt="" className="w-7 h-7 rounded-full object-cover shrink-0 bg-gray-100"
+              />
+              <span className="text-sm text-gray-800 flex-1">{p.display_name}</span>
+              <span className="badge bg-orange-100 text-orange-700">+时</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Payment section */}
       {session.status === 'locked' && (
         <PaymentSection
@@ -451,11 +472,10 @@ function ParticipantRow({
         {/* Stayed late toggle (admin, locked) */}
         {isAdmin && isLocked && (
           <button onClick={onToggleLate}
-            title={p.stayed_late ? 'Played extra — click to unmark' : 'Mark as played extra time'}
-            className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors
+            className={`text-xs px-2 py-1 rounded-lg font-medium
               ${p.stayed_late
-                ? 'bg-orange-100 text-orange-700'
-                : 'bg-gray-100 text-gray-400 hover:bg-orange-50 hover:text-orange-500'}`}>
+                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
             +时
           </button>
         )}
