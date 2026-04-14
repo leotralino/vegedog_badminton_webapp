@@ -87,7 +87,7 @@ export default function SessionDetailClient({
 
   const isAdmin = currentUser?.id === session.initiator_id
 
-  // ── Realtime subscription ─────────────────────────────────────────────
+  // ── Realtime subscriptions ────────────────────────────────────────────
   const refreshParticipants = useCallback(async () => {
     const { data } = await supabase
       .from('participants')
@@ -97,6 +97,14 @@ export default function SessionDetailClient({
     if (data) setParticipants(data as ParticipantWithProfile[])
   }, [session.id, supabase])
 
+  const refreshPayRecords = useCallback(async () => {
+    const { data } = await supabase
+      .from('payment_records')
+      .select('*')
+      .eq('session_id', session.id)
+    if (data) setPayRecords(data as PaymentRecord[])
+  }, [session.id, supabase])
+
   useEffect(() => {
     const channel = supabase
       .channel(`session-${session.id}`)
@@ -104,9 +112,13 @@ export default function SessionDetailClient({
         event: '*', schema: 'public', table: 'participants',
         filter: `session_id=eq.${session.id}`,
       }, refreshParticipants)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'payment_records',
+        filter: `session_id=eq.${session.id}`,
+      }, refreshPayRecords)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [session.id, supabase, refreshParticipants])
+  }, [session.id, supabase, refreshParticipants, refreshPayRecords])
 
   // ── Default join name ────────────────────────────────────────────────
   useEffect(() => {
@@ -184,9 +196,22 @@ export default function SessionDetailClient({
     const { error } = await (supabase.from('sessions') as any)
       .update({ status: 'locked' })
       .eq('id', session.id)
+    if (error) { setLocking(false); showToast(error.message, false); return }
+
+    // Auto-initialize payment records (unpaid) for all joined participants
+    const joinedPs = participants.filter(p => p.status === 'joined')
+    const existingParticipantIds = payRecords.map(r => r.participant_id)
+    const toInsert = joinedPs
+      .filter(p => !existingParticipantIds.includes(p.id))
+      .map(p => ({ session_id: session.id, participant_id: p.id, base_fee: 0, late_fee: 0, status: 'unpaid' }))
+    if (toInsert.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from('payment_records') as any).insert(toInsert)
+    }
+
     setLocking(false)
-    if (error) showToast(error.message, false)
-    else { showToast('接龙已锁定 🔒'); router.refresh() }
+    showToast('接龙已锁定 🔒')
+    router.refresh()
   }
 
   // ── Move to history ───────────────────────────────────────────────────
@@ -220,7 +245,7 @@ export default function SessionDetailClient({
     const existing = payRecords.find(r => r.participant_id === participantId)
     const newStatus: 'paid' | 'unpaid' = existing?.status === 'paid' ? 'unpaid' : 'paid'
 
-    if (existing) {
+    if (existing && !existing.id.startsWith('temp-')) {
       // Optimistic update then patch
       setPayRecords(prev => prev.map(r =>
         r.participant_id === participantId ? { ...r, status: newStatus } : r
@@ -235,8 +260,8 @@ export default function SessionDetailClient({
           r.participant_id === participantId ? { ...r, status: existing.status } : r
         ))
       }
-    } else {
-      // No record yet — insert with status 'paid'
+    } else if (!existing) {
+      // Fallback: no record — insert with 'paid' and refresh to get real UUID
       const tempId = `temp-${Date.now()}`
       setPayRecords(prev => [...prev, {
         id: tempId, session_id: session.id, participant_id: participantId,
@@ -250,6 +275,9 @@ export default function SessionDetailClient({
       if (error) {
         showToast(error instanceof Error ? error.message : '出现错误', false)
         setPayRecords(prev => prev.filter(r => r.id !== tempId))
+      } else {
+        // Replace temp entry with the real DB row (gets a valid UUID)
+        await refreshPayRecords()
       }
     }
   }
@@ -393,7 +421,7 @@ export default function SessionDetailClient({
           <div className="space-y-1">
             {joined.map((p, i) => (
               <ParticipantRow key={p.id} p={p} rank={i+1}
-                isAdmin={isAdmin} isLocked={session.status === 'locked'}
+                isAdmin={isAdmin} isLocked={session.status === 'locked' || session.status === 'closed'}
                 isOwn={currentUser?.id === p.user_id}
                 payRecord={payRecords.find(r => r.participant_id === p.id)}
                 onWithdraw={() => handleWithdraw(p.id)}
@@ -405,7 +433,7 @@ export default function SessionDetailClient({
                 <div className="text-xs text-brand-600 font-semibold pt-2 pb-1">— 候补 —</div>
                 {waitlist.map((p, i) => (
                   <ParticipantRow key={p.id} p={p} rank={joined.length + i + 1}
-                    isAdmin={isAdmin} isLocked={session.status === 'locked'}
+                    isAdmin={isAdmin} isLocked={session.status === 'locked' || session.status === 'closed'}
                     isOwn={currentUser?.id === p.user_id}
                     payRecord={payRecords.find(r => r.participant_id === p.id)}
                     onWithdraw={() => handleWithdraw(p.id)}
@@ -455,7 +483,7 @@ export default function SessionDetailClient({
       )}
 
       {/* Payment section */}
-      {session.status === 'locked' && (
+      {(session.status === 'locked' || session.status === 'closed') && (
         <PaymentSection
           session={session}
           participants={[...joined, ...waitlist]}

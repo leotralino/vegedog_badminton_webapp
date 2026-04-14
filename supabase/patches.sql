@@ -133,3 +133,15 @@ drop policy if exists "payment_records_select_own" on public.payment_records;
 drop policy if exists "records_upsert_admin" on public.payment_records;
 create policy "payment_records_select_authenticated" on public.payment_records
   for select using (auth.role() = 'authenticated');
+
+-- Fix 9: Backfill payment records (unpaid) for already-locked sessions missing them.
+-- Run once to initialize existing locked sessions.
+insert into public.payment_records (session_id, participant_id, base_fee, late_fee, status)
+select p.session_id, p.id, 0, 0, 'unpaid'
+from public.participants p
+join public.sessions s on s.id = p.session_id
+where s.status in ('locked', 'closed')
+  and p.status = 'joined'
+  and not exists (
+    select 1 from public.payment_records r where r.participant_id = p.id
+  );
