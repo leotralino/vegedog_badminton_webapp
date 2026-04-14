@@ -535,7 +535,7 @@ function ParticipantRow({
           </button>
         )}
 
-        {/* Admin payment badge for other users' entries */}
+        {/* Read-only payment status badge for other users' entries */}
         {!isOwn && payRecord && (
           <span className={`badge ${PAY_CLASS[payRecord.status]}`}>
             {PAY_LABEL[payRecord.status]}

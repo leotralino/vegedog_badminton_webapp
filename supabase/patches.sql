@@ -125,3 +125,11 @@ create policy "payment_records_update_own" on public.payment_records
         and participants.user_id = auth.uid()
     )
   );
+
+-- Fix 8: Allow all authenticated users to read payment records (so everyone can see who paid)
+-- Remove admin-only SELECT and unused admin INSERT
+drop policy if exists "records_select_admin" on public.payment_records;
+drop policy if exists "payment_records_select_own" on public.payment_records;
+drop policy if exists "records_upsert_admin" on public.payment_records;
+create policy "payment_records_select_authenticated" on public.payment_records
+  for select using (auth.role() = 'authenticated');
