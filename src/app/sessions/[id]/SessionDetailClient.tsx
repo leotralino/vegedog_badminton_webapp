@@ -481,6 +481,8 @@ export default function SessionDetailClient({
           currentUserId={currentUser?.id}
           isAdmin={isAdmin && session.status !== 'closed'}
           onMethodAdded={m => setPaymentMethods(prev => [...prev, m])}
+          onMethodUpdated={m => setPaymentMethods(prev => prev.map(x => x.id === m.id ? m : x))}
+          onMethodRemoved={id => setPaymentMethods(prev => prev.filter(x => x.id !== id))}
         />
       )}
     </div>
@@ -576,7 +578,7 @@ function ParticipantRow({
 // ── Payment section ────────────────────────────────────────────────────────
 function PaymentSection({
   session, participants, paymentMethods, paymentRecords,
-  currentUserId, isAdmin, onMethodAdded,
+  currentUserId, isAdmin, onMethodAdded, onMethodUpdated, onMethodRemoved,
 }: {
   session: SessionWithInitiator
   participants: ParticipantWithProfile[]
@@ -584,10 +586,14 @@ function PaymentSection({
   paymentRecords: PaymentRecord[]
   currentUserId?: string
   isAdmin: boolean
-  onMethodAdded: (m: PaymentMethod) => void
+  onMethodAdded:   (m: PaymentMethod) => void
+  onMethodUpdated: (m: PaymentMethod) => void
+  onMethodRemoved: (id: string) => void
 }) {
   const supabase  = createClient()
-  const [showForm,  setShowForm]  = useState(false)
+  const [showForm,        setShowForm]        = useState(false)
+  const [editingMethodId, setEditingMethodId] = useState<string | null>(null)
+  const [menuOpenId,      setMenuOpenId]      = useState<string | null>(null)
   const [search,    setSearch]    = useState('')
   const [selected,  setSelected]  = useState<ParticipantWithProfile | null>(null)
   const [venmoId,   setVenmoId]   = useState('')
@@ -611,28 +617,66 @@ function PaymentSection({
   }
 
   function resetForm() {
-    setShowForm(false); setSelected(null); setSearch(''); setVenmoId(''); setAmount(''); setDropOpen(false)
+    setShowForm(false); setEditingMethodId(null); setSelected(null)
+    setSearch(''); setVenmoId(''); setAmount(''); setDropOpen(false)
+  }
+
+  function startEdit(method: PaymentMethod) {
+    const match = uniqueUsers.find(p =>
+      (p.profile?.nickname ?? p.display_name) === method.label
+    )
+    setEditingMethodId(method.id)
+    setSelected(match ?? null)
+    setSearch(method.label)
+    setVenmoId(method.account_ref)
+    setAmount(method.amount != null ? method.amount.toString() : '')
+    setShowForm(true)
+    setMenuOpenId(null)
+  }
+
+  async function removeMethod(method: PaymentMethod) {
+    setMenuOpenId(null)
+    if (!window.confirm(`确定删除收款人"${method.label}"？`)) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('payment_methods') as any)
+      .delete().eq('id', method.id)
+    if (!error) onMethodRemoved(method.id)
   }
 
   async function saveMethod() {
-    if (!selected || !currentUserId) return
     const ref = venmoId.trim().replace(/^@/, '')
-    if (!ref) return
+    if (!ref || !currentUserId) return
     const parsedAmount = parseFloat(amount)
+    const amountVal = isNaN(parsedAmount) || parsedAmount <= 0 ? null : parsedAmount
     setSaving(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from('payment_methods') as any)
-      .insert({
-        session_id:  session.id,
-        type:        'venmo',
-        label:       selected.profile?.nickname ?? selected.display_name,
-        account_ref: ref,
-        amount:      isNaN(parsedAmount) || parsedAmount <= 0 ? null : parsedAmount,
-        created_by:  currentUserId,
-      })
-      .select().single() as { data: PaymentMethod | null; error: unknown }
-    setSaving(false)
-    if (!error && data) { onMethodAdded(data); resetForm() }
+
+    if (editingMethodId) {
+      // Update existing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from('payment_methods') as any)
+        .update({ account_ref: ref, amount: amountVal,
+                  label: selected ? (selected.profile?.nickname ?? selected.display_name) : search })
+        .eq('id', editingMethodId)
+        .select().single() as { data: PaymentMethod | null; error: unknown }
+      setSaving(false)
+      if (!error && data) { onMethodUpdated(data); resetForm() }
+    } else {
+      // Insert new
+      if (!selected) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from('payment_methods') as any)
+        .insert({
+          session_id:  session.id,
+          type:        'venmo',
+          label:       selected.profile?.nickname ?? selected.display_name,
+          account_ref: ref,
+          amount:      amountVal,
+          created_by:  currentUserId,
+        })
+        .select().single() as { data: PaymentMethod | null; error: unknown }
+      setSaving(false)
+      if (!error && data) { onMethodAdded(data); resetForm() }
+    }
   }
 
   const allPaid = paymentRecords.length > 0 && paymentRecords.every(r => r.status === 'paid')
@@ -655,9 +699,37 @@ function PaymentSection({
           <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">付款给</p>
           {paymentMethods.map(method => (
             <div key={method.id} className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{method.label}</p>
-                <p className="text-xs text-gray-400">@{method.account_ref}</p>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {/* Admin settings menu */}
+                {isAdmin && (
+                  <div className="relative shrink-0">
+                    <button
+                      onClick={() => setMenuOpenId(menuOpenId === method.id ? null : method.id)}
+                      className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400
+                                 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                      </svg>
+                    </button>
+                    {menuOpenId === method.id && (
+                      <div className="absolute left-0 top-7 z-20 bg-white border border-gray-100
+                                      rounded-xl shadow-lg overflow-hidden w-28">
+                        <button onClick={() => startEdit(method)}
+                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          编辑
+                        </button>
+                        <button onClick={() => removeMethod(method)}
+                          className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50">
+                          删除
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">{method.label}</p>
+                  <p className="text-xs text-gray-400">@{method.account_ref}</p>
+                </div>
               </div>
               <div className="shrink-0 flex items-center gap-2">
                 {method.amount != null && (
@@ -685,7 +757,7 @@ function PaymentSection({
           ) : (
             <div className="space-y-3 border border-gray-100 rounded-xl p-3">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                选择收款人
+                {editingMethodId ? '编辑收款人' : '选择收款人'}
               </p>
 
               {/* User search */}
@@ -720,14 +792,14 @@ function PaymentSection({
               </div>
 
               {/* Venmo ID + Amount — pre-filled from profile or blank */}
-              {selected && (
+              {(selected || editingMethodId) && (
                 <>
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">
                       Venmo ID
-                      {selected.profile?.venmo_username
+                      {selected?.profile?.venmo_username
                         ? <span className="ml-1 text-brand-600">（来自个人资料）</span>
-                        : <span className="ml-1 text-orange-500">（未设置，请手动填写）</span>
+                        : selected && <span className="ml-1 text-orange-500">（未设置，请手动填写）</span>
                       }
                     </label>
                     <div className="relative">
@@ -757,10 +829,11 @@ function PaymentSection({
               )}
 
               <div className="flex gap-2">
-                <button onClick={saveMethod} disabled={saving || !selected || !venmoId.trim()}
+                <button onClick={saveMethod}
+                  disabled={saving || (!editingMethodId && !selected) || !venmoId.trim()}
                   className="flex-1 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold
                              disabled:opacity-40 transition-opacity">
-                  {saving ? '保存中…' : '添加'}
+                  {saving ? '保存中…' : editingMethodId ? '保存' : '添加'}
                 </button>
                 <button onClick={resetForm}
                   className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">
