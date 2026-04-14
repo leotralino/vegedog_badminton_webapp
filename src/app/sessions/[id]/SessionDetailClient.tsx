@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatSessionDate } from '@/lib/dates'
@@ -271,6 +271,20 @@ export default function SessionDetailClient({
     }
   }
 
+  // ── Participant search (admin, locked) ───────────────────────────────
+  const [searchOpen,  setSearchOpen]  = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [matchIdx,    setMatchIdx]    = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const rowRefs = useRef<Map<string, HTMLElement>>(new Map())
+
+  function fuzzyMatch(name: string, query: string): boolean {
+    const n = name.toLowerCase(), q = query.toLowerCase()
+    let qi = 0
+    for (let i = 0; i < n.length && qi < q.length; i++) if (n[i] === q[qi]) qi++
+    return qi === q.length
+  }
+
   // ── Partition participants ────────────────────────────────────────────
   const joined    = participants.filter(p => p.status === 'joined')
   const waitlist  = participants.filter(p => p.status === 'waitlist')
@@ -280,6 +294,25 @@ export default function SessionDetailClient({
   const myActiveEntries = currentUser
     ? participants.filter(p => p.user_id === currentUser.id && (p.status === 'joined' || p.status === 'waitlist'))
     : []
+
+  const searchMatches = searchQuery.trim()
+    ? joined.filter(p =>
+        fuzzyMatch(p.display_name, searchQuery) ||
+        fuzzyMatch(p.profile?.nickname ?? '', searchQuery))
+    : []
+  const safeMatchIdx = searchMatches.length > 0 ? Math.min(matchIdx, searchMatches.length - 1) : 0
+  const currentMatchId = searchMatches[safeMatchIdx]?.id ?? null
+
+  // Auto-scroll to current match
+  useEffect(() => {
+    if (!currentMatchId) return
+    rowRefs.current.get(currentMatchId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [currentMatchId])
+
+  // Focus input when search opens
+  useEffect(() => {
+    if (searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50)
+  }, [searchOpen])
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
@@ -402,32 +435,109 @@ export default function SessionDetailClient({
           <h2 className="font-semibold text-gray-900">
             已报名（{joined.length}/{session.max_participants}）
           </h2>
+          {/* Admin search — locked sessions only */}
+          {isAdmin && session.status === 'locked' && (
+            <button
+              onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setMatchIdx(0) }}
+              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors
+                          ${searchOpen ? 'bg-brand-100 text-brand-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd"/>
+              </svg>
+            </button>
+          )}
         </div>
+
+        {/* Search input + dropdown */}
+        {searchOpen && (
+          <div className="relative">
+            <div className="relative">
+              <input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setMatchIdx(0) }}
+                placeholder="搜索参与者姓名…"
+                className="input text-sm pr-8"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Results dropdown */}
+            {searchMatches.length > 0 && (
+              <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-gray-100
+                              rounded-xl shadow-lg overflow-hidden">
+                {searchMatches.map((p, i) => (
+                  <button key={p.id}
+                    onMouseDown={() => { setMatchIdx(i); setSearchQuery('') }}
+                    className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 transition-colors
+                                ${i === safeMatchIdx ? 'bg-brand-50' : 'hover:bg-gray-50'}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
+                      alt="" className="w-5 h-5 rounded-full bg-gray-100 shrink-0"/>
+                    <span className="font-medium">{p.display_name}</span>
+                    {p.profile?.nickname && p.profile.nickname !== p.display_name && (
+                      <span className="text-xs text-gray-400">{p.profile.nickname}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            {searchQuery.trim() && searchMatches.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1.5 px-1">无匹配结果</p>
+            )}
+
+            {/* Cycle counter — shown when query is cleared but match is active */}
+            {!searchQuery && currentMatchId && (
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <span className="text-xs text-gray-400">{safeMatchIdx + 1} / {searchMatches.length}</span>
+                <button onClick={() => setMatchIdx(i => (i - 1 + searchMatches.length) % searchMatches.length)}
+                  className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 text-xs">↑</button>
+                <button onClick={() => setMatchIdx(i => (i + 1) % searchMatches.length)}
+                  className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 text-xs">↓</button>
+              </div>
+            )}
+          </div>
+        )}
 
         {joined.length === 0 && waitlist.length === 0 ? (
           <p className="text-sm text-gray-400 py-4 text-center">暂无报名，快来第一个！</p>
         ) : (
           <div className="space-y-1">
             {joined.map((p, i) => (
-              <ParticipantRow key={p.id} p={p} rank={i+1}
-                isAdmin={isAdmin} isLocked={session.status === 'locked'}
-                isOwn={currentUser?.id === p.user_id}
-                payRecord={payRecords.find(r => r.participant_id === p.id)}
-                onWithdraw={() => handleWithdraw(p.id)}
-                onToggleLate={() => handleToggleLate(p)}
-                onTogglePayment={() => handleTogglePayment(p.id)} />
+              <div key={p.id}
+                ref={el => { if (el) rowRefs.current.set(p.id, el); else rowRefs.current.delete(p.id) }}
+                className={`rounded-lg transition-colors duration-300
+                            ${p.id === currentMatchId ? 'bg-yellow-50 ring-1 ring-yellow-300' : ''}`}>
+                <ParticipantRow p={p} rank={i+1}
+                  isAdmin={isAdmin} isLocked={session.status === 'locked'}
+                  isOwn={currentUser?.id === p.user_id}
+                  payRecord={payRecords.find(r => r.participant_id === p.id)}
+                  onWithdraw={() => handleWithdraw(p.id)}
+                  onToggleLate={() => handleToggleLate(p)}
+                  onTogglePayment={() => handleTogglePayment(p.id)} />
+              </div>
             ))}
             {waitlist.length > 0 && (
               <>
                 <div className="text-xs text-brand-600 font-semibold pt-2 pb-1">— 候补 —</div>
                 {waitlist.map((p, i) => (
-                  <ParticipantRow key={p.id} p={p} rank={joined.length + i + 1}
-                    isAdmin={isAdmin} isLocked={session.status === 'locked'}
-                    isOwn={currentUser?.id === p.user_id}
-                    payRecord={payRecords.find(r => r.participant_id === p.id)}
-                    onWithdraw={() => handleWithdraw(p.id)}
-                    onToggleLate={() => handleToggleLate(p)}
-                onTogglePayment={() => handleTogglePayment(p.id)} />
+                  <div key={p.id}
+                    ref={el => { if (el) rowRefs.current.set(p.id, el); else rowRefs.current.delete(p.id) }}>
+                    <ParticipantRow p={p} rank={joined.length + i + 1}
+                      isAdmin={isAdmin} isLocked={session.status === 'locked'}
+                      isOwn={currentUser?.id === p.user_id}
+                      payRecord={payRecords.find(r => r.participant_id === p.id)}
+                      onWithdraw={() => handleWithdraw(p.id)}
+                      onToggleLate={() => handleToggleLate(p)}
+                      onTogglePayment={() => handleTogglePayment(p.id)} />
+                  </div>
                 ))}
               </>
             )}
