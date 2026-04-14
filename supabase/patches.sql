@@ -96,3 +96,11 @@ alter table public.sessions
 
 alter table public.sessions
   alter column late_withdraw_ratio set default null;
+
+-- Fix 6: Add 'closed' status for manual move-to-history
+alter table public.sessions
+  drop constraint if exists sessions_status_check;
+
+alter table public.sessions
+  add constraint sessions_status_check
+  check (status in ('open', 'locked', 'canceled', 'closed'));

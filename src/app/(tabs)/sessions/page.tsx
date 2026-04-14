@@ -13,6 +13,7 @@ async function getSessions() {
     .from('sessions')
     .select(`*, initiator:profiles!initiator_id(id, nickname, avatar_url)`)
     .neq('status', 'canceled')
+    .neq('status', 'closed')
     .gte('starts_at', cutoff)
     .order('starts_at', { ascending: true })
 

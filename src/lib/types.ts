@@ -29,7 +29,7 @@ export interface Profile {
   updated_at:     string
 }
 
-export type SessionStatus = 'open' | 'locked' | 'canceled'
+export type SessionStatus = 'open' | 'locked' | 'canceled' | 'closed'
 
 export interface Session {
   id:                   string

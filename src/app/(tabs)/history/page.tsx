@@ -12,7 +12,7 @@ async function getHistory() {
   const { data: sessions } = await supabase
     .from('sessions')
     .select(`*, initiator:profiles!initiator_id(id, nickname, avatar_url)`)
-    .lt('starts_at', cutoff)
+    .or(`starts_at.lt.${cutoff},status.eq.closed`)
     .order('starts_at', { ascending: false })
     .limit(30)
 

@@ -20,11 +20,12 @@ interface Props {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-const STATUS_LABEL: Record<string, string> = { open:'正在接龙', locked:'已锁定', canceled:'已取消' }
+const STATUS_LABEL: Record<string, string> = { open:'正在接龙', locked:'已锁定', canceled:'已取消', closed:'已结束' }
 const STATUS_CLASS: Record<string, string> = {
   open:    'bg-brand-100 text-brand-700',
   locked:  'bg-blue-100 text-blue-700',
   canceled:'bg-red-100 text-red-700',
+  closed:  'bg-gray-100 text-gray-500',
 }
 const PAY_CLASS: Record<string, string> = {
   paid:   'bg-green-100 text-green-700',
@@ -187,6 +188,20 @@ export default function SessionDetailClient({
     else { showToast('接龙已锁定 🔒'); router.refresh() }
   }
 
+  // ── Move to history ───────────────────────────────────────────────────
+  const [closing, setClosing] = useState(false)
+  async function handleClose() {
+    if (!window.confirm('确定将此接龙移入历史？')) return
+    setClosing(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('sessions') as any)
+      .update({ status: 'closed' })
+      .eq('id', session.id)
+    setClosing(false)
+    if (error) showToast(error.message, false)
+    else router.push('/history')
+  }
+
   // ── Toggle stayed late ────────────────────────────────────────────────
   async function handleToggleLate(p: Participant) {
     const newVal = !p.stayed_late
@@ -265,6 +280,13 @@ export default function SessionDetailClient({
             className="w-full mt-2 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold
                        active:bg-blue-700 disabled:opacity-50 transition-colors">
             {locking ? '锁定中…' : '🔒 锁定接龙'}
+          </button>
+        )}
+        {isAdmin && session.status === 'locked' && (
+          <button onClick={handleClose} disabled={closing}
+            className="w-full mt-2 py-2 rounded-xl bg-gray-200 text-gray-600 text-sm font-semibold
+                       active:bg-gray-300 disabled:opacity-50 transition-colors">
+            {closing ? '移动中…' : '📁 移动到历史'}
           </button>
         )}
 
