@@ -38,7 +38,14 @@ export default async function SessionsPage() {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-      <h1 className="text-xl font-bold text-gray-900">接龙</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900">接龙</h1>
+        <a href="/sessions/new"
+          className="text-sm font-semibold text-white bg-brand-600 px-3 py-1.5 rounded-lg
+                     active:bg-brand-700 transition-colors">
+          + 发起接龙
+        </a>
+      </div>
       {sessions.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
           <p className="text-3xl mb-2">🏸</p>
