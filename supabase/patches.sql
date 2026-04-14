@@ -172,3 +172,10 @@ where s.status in ('locked', 'closed')
 -- Fix 10: Add amount column to payment_methods (amount per person for this payee)
 alter table public.payment_methods
   add column if not exists amount numeric(10,2) default null;
+
+-- Fix 11: Allow session admin to update and delete their own payment_methods rows
+create policy "methods_update_admin" on public.payment_methods for update
+  using (auth.uid() = (select initiator_id from public.sessions where id = session_id));
+
+create policy "methods_delete_admin" on public.payment_methods for delete
+  using (auth.uid() = (select initiator_id from public.sessions where id = session_id));
