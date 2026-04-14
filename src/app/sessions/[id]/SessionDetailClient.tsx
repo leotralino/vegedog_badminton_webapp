@@ -659,13 +659,13 @@ function PaymentSection({
                 <p className="text-sm font-medium text-gray-900">{method.label}</p>
                 <p className="text-xs text-gray-400">@{method.account_ref}</p>
               </div>
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 flex items-center gap-2">
                 {method.amount != null && (
-                  <p className="text-xs text-gray-500 mb-1">金额：<strong>${method.amount.toFixed(2)}</strong></p>
+                  <span className="text-sm font-semibold text-gray-700">${method.amount.toFixed(2)}</span>
                 )}
                 <a href={venmoUrl(method.account_ref)}
                    target="_blank" rel="noopener noreferrer"
-                   className="inline-block px-4 py-2 rounded-xl text-sm font-bold text-white
+                   className="inline-block px-3 py-1.5 rounded-lg text-sm font-bold text-white
                               bg-[#008CFF] active:opacity-80 transition-opacity">
                   Venmo 付款
                 </a>
