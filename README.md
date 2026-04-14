@@ -21,9 +21,9 @@
 ## 📱 应用截图
 
 <p align="center">
-  <img src="docs/screen_1.png" width="20%" alt="接龙列表" />
+  <img src="docs/screen_1.png" width="30%" alt="接龙列表" />
   &nbsp;&nbsp;&nbsp;
-  <img src="docs/screen_2.png" width="20%" alt="场次详情" />
+  <img src="docs/screen_2.png" width="30%" alt="场次详情" />
 </p>
 
 ---
@@ -49,6 +49,8 @@
 
 ### 第二阶段：功能完善 (V1) — 开发中
 - [ ] 系统通知：通过微信或邮件推送报名状态变更
+- [ ] 自动付费统计
+- [ ] 后台活跃度、对战历史统计
 
 ### 第三阶段：增强模块
 - [ ] 菜狗杯：自动配对、ELO 排名、积分追踪
