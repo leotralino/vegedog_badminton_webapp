@@ -12,6 +12,12 @@
   <img src="https://img.shields.io/badge/Deployment-Vercel-000000?style=flat-square&logo=vercel" alt="Vercel">
 </p>
 
+<p align="center">
+  <a href="https://vegedog-badminton-webapp.vercel.app/">
+    <img src="https://img.shields.io/badge/🏸%20打开应用-vegedog--badminton--webapp.vercel.app-4F46E5?style=for-the-badge" alt="Open App">
+  </a>
+</p>
+
 **菜狗（VegDog）** 是一个基于 **Next.js + Supabase** 构建的全栈 Web 应用，旨在为菜狗羽毛球群提供简洁、高效的约球管理方案。
 
 本项目通过自动化流程取代传统的社交软件群接龙，解决了报名统计混乱、并发冲突、晚退判定困难以及收款对账繁琐等核心痛点。
