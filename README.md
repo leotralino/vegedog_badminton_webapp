@@ -24,6 +24,8 @@
   <img src="docs/screen_1.png" width="30%" alt="接龙列表" />
   &nbsp;&nbsp;&nbsp;
   <img src="docs/screen_2.png" width="30%" alt="场次详情" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/screen_3.png" width="30%" alt="付款详情" />
 </p>
 
 ---
