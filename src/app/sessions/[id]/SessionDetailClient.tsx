@@ -244,15 +244,12 @@ export default function SessionDetailClient({
         updated_at: new Date().toISOString(),
       }])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.from('payment_records') as any)
+      const { error } = await (supabase.from('payment_records') as any)
         .insert({ session_id: session.id, participant_id: participantId,
                   base_fee: 0, late_fee: 0, status: 'paid' })
-        .select().single() as { data: PaymentRecord | null; error: unknown }
       if (error) {
         showToast(error instanceof Error ? error.message : '出现错误', false)
         setPayRecords(prev => prev.filter(r => r.id !== tempId))
-      } else if (data) {
-        setPayRecords(prev => prev.map(r => r.id === tempId ? data : r))
       }
     }
   }
