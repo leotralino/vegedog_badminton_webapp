@@ -198,7 +198,9 @@ export default function SessionDetailClient({
       .eq('id', session.id)
     setLocking(false)
     if (error) { showToast(error.message, false); return }
-    // Payment records are auto-initialized by DB trigger on_session_locked
+    // Trigger on_session_locked has created payment records — pull them now
+    // so payRecords state is fresh before any toggle attempts
+    await refreshPayRecords()
     showToast('接龙已锁定 🔒')
     router.refresh()
   }
