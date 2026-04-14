@@ -644,25 +644,24 @@ function PaymentSection({
   }
 
   async function saveMethod() {
-    const ref = venmoId.trim().replace(/^@/, '')
-    if (!ref || !currentUserId) return
+    if (!currentUserId) return
     const parsedAmount = parseFloat(amount)
     const amountVal = isNaN(parsedAmount) || parsedAmount <= 0 ? null : parsedAmount
     setSaving(true)
 
     if (editingMethodId) {
-      // Update existing
+      // Edit mode: only update amount
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from('payment_methods') as any)
-        .update({ account_ref: ref, amount: amountVal,
-                  label: selected ? (selected.profile?.nickname ?? selected.display_name) : search })
+        .update({ amount: amountVal })
         .eq('id', editingMethodId)
         .select().single() as { data: PaymentMethod | null; error: unknown }
       setSaving(false)
       if (!error && data) { onMethodUpdated(data); resetForm() }
     } else {
-      // Insert new
-      if (!selected) return
+      // Add mode: require user selection and Venmo handle
+      const ref = venmoId.trim().replace(/^@/, '')
+      if (!ref || !selected) { setSaving(false); return }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from('payment_methods') as any)
         .insert({
@@ -760,77 +759,96 @@ function PaymentSection({
                 {editingMethodId ? '编辑收款人' : '选择收款人'}
               </p>
 
-              {/* User search */}
-              <div className="relative">
-                <input
-                  className="input"
-                  placeholder="搜索参与者…"
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setSelected(null); setDropOpen(true) }}
-                  onFocus={() => setDropOpen(true)}
-                />
-                {dropOpen && search && filtered.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100
-                                  rounded-xl shadow-lg overflow-hidden">
-                    {filtered.map(p => (
-                      <button key={p.user_id} onMouseDown={() => selectUser(p)}
-                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50
-                                   flex items-center gap-2.5 transition-colors">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={p.profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
-                          alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0"
-                        />
-                        <span className="font-medium">{p.profile?.nickname ?? p.display_name}</span>
-                        {p.profile?.venmo_username && (
-                          <span className="text-xs text-gray-400 ml-auto">@{p.profile.venmo_username}</span>
-                        )}
-                      </button>
-                    ))}
+              {/* Edit mode: only show amount */}
+              {editingMethodId ? (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">金额（每人应付）</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input
+                      className="input pl-7"
+                      placeholder="0.00"
+                      inputMode="decimal"
+                      value={amount}
+                      onChange={e => setAmount(e.target.value)}
+                      autoFocus
+                    />
                   </div>
-                )}
-              </div>
-
-              {/* Venmo ID + Amount — pre-filled from profile or blank */}
-              {(selected || editingMethodId) && (
+                </div>
+              ) : (
                 <>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">
-                      Venmo ID
-                      {selected?.profile?.venmo_username
-                        ? <span className="ml-1 text-brand-600">（来自个人资料）</span>
-                        : selected && <span className="ml-1 text-orange-500">（未设置，请手动填写）</span>
-                      }
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
-                      <input
-                        className="input pl-7"
-                        placeholder="venmo-handle"
-                        value={venmoId}
-                        onChange={e => setVenmoId(e.target.value.replace(/^@/, ''))}
-                      />
-                    </div>
+                  {/* Add mode: user search + Venmo + amount */}
+                  <div className="relative">
+                    <input
+                      className="input"
+                      placeholder="搜索参与者…"
+                      value={search}
+                      onChange={e => { setSearch(e.target.value); setSelected(null); setDropOpen(true) }}
+                      onFocus={() => setDropOpen(true)}
+                    />
+                    {dropOpen && search && filtered.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100
+                                      rounded-xl shadow-lg overflow-hidden">
+                        {filtered.map(p => (
+                          <button key={p.user_id} onMouseDown={() => selectUser(p)}
+                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50
+                                       flex items-center gap-2.5 transition-colors">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={p.profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
+                              alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0"
+                            />
+                            <span className="font-medium">{p.profile?.nickname ?? p.display_name}</span>
+                            {p.profile?.venmo_username && (
+                              <span className="text-xs text-gray-400 ml-auto">@{p.profile.venmo_username}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">金额（每人应付）</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                      <input
-                        className="input pl-7"
-                        placeholder="0.00"
-                        inputMode="decimal"
-                        value={amount}
-                        onChange={e => setAmount(e.target.value)}
-                      />
-                    </div>
-                  </div>
+
+                  {selected && (
+                    <>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">
+                          Venmo ID
+                          {selected.profile?.venmo_username
+                            ? <span className="ml-1 text-brand-600">（来自个人资料）</span>
+                            : <span className="ml-1 text-orange-500">（未设置，请手动填写）</span>
+                          }
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                          <input
+                            className="input pl-7"
+                            placeholder="venmo-handle"
+                            value={venmoId}
+                            onChange={e => setVenmoId(e.target.value.replace(/^@/, ''))}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">金额（每人应付）</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                          <input
+                            className="input pl-7"
+                            placeholder="0.00"
+                            inputMode="decimal"
+                            value={amount}
+                            onChange={e => setAmount(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
               <div className="flex gap-2">
                 <button onClick={saveMethod}
-                  disabled={saving || (!editingMethodId && !selected) || !venmoId.trim()}
+                  disabled={saving || (!editingMethodId && (!selected || !venmoId.trim()))}
                   className="flex-1 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold
                              disabled:opacity-40 transition-opacity">
                   {saving ? '保存中…' : editingMethodId ? '保存' : '添加'}
