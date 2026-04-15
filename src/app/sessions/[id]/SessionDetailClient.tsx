@@ -960,6 +960,7 @@ function PaymentSection({
   const [venmoId,   setVenmoId]   = useState('')
   const [amount,    setAmount]    = useState('')
   const [saving,    setSaving]    = useState(false)
+  const [venmoPending, setVenmoPending] = useState<{ accountRef: string; amount?: number | null; note: string } | null>(null)
   const [dropOpen,  setDropOpen]  = useState(false)
 
   // Deduplicate participants by user_id for the search dropdown
@@ -1045,6 +1046,32 @@ function PaymentSection({
 
   return (
     <div className="card space-y-4">
+
+      {/* Venmo reminder dialog */}
+      {venmoPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setVenmoPending(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3">
+            <h3 className="text-base font-bold text-gray-900">付款提示</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              转账后请务必先在 Venmo 里确认付款成功，然后手动在自己的接龙里更新付款状态！如果有 +1 请全部付清（提前和对方确认有没有晚场加时），方便对账。谢谢！
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setVenmoPending(null)}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold
+                           active:bg-gray-200 transition-colors">
+                取消
+              </button>
+              <button onClick={() => { const p = venmoPending; setVenmoPending(null); openVenmo(p.accountRef, p.amount, p.note) }}
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold
+                           bg-[#008CFF] active:opacity-80 transition-colors">
+                前往 Venmo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h2 className="font-semibold text-gray-900">💳 付款</h2>
 
       {/* All-paid celebration banner */}
@@ -1097,7 +1124,7 @@ function PaymentSection({
                 {method.amount != null && (
                   <span className="text-sm font-semibold text-gray-700">${method.amount.toFixed(2)}</span>
                 )}
-                <button onClick={() => openVenmo(method.account_ref, method.amount, `${session.title} @${currentUserNickname ?? 'Player'}`)}
+                <button onClick={() => setVenmoPending({ accountRef: method.account_ref, amount: method.amount, note: `${session.title} @${currentUserNickname ?? 'Player'}` })}
                    className="px-3 py-1.5 rounded-lg text-sm font-bold text-white
                               bg-[#008CFF] active:opacity-80 transition-opacity">
                   Venmo 付款
