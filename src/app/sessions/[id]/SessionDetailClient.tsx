@@ -1265,14 +1265,9 @@ function PaymentSection({
             return (
               <div key={p.id} className="flex items-center justify-between text-sm">
                 <span className="text-gray-700">{p.display_name}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400 text-xs">
-                    ${(record.base_fee + record.late_fee).toFixed(2)}
-                  </span>
-                  <span className={`badge ${PAY_CLASS[record.status]}`}>
-                    {PAY_LABEL[record.status]}
-                  </span>
-                </div>
+                <span className={`badge ${PAY_CLASS[record.status]}`}>
+                  {PAY_LABEL[record.status]}
+                </span>
               </div>
             )
           })}
