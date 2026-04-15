@@ -94,6 +94,13 @@ export default function SessionDetailClient({
   const [joining,   setJoining]   = useState(false)
   const [locking,   setLocking]   = useState(false)
   const [toast,     setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
+  const [confirm,   setConfirm]   = useState<{
+    title: string; message: string; onConfirm: () => void; danger?: boolean
+  } | null>(null)
+
+  function showConfirm(title: string, message: string, onConfirm: () => void, danger = true) {
+    setConfirm({ title, message, onConfirm, danger })
+  }
 
   const isAdmin = admins.some(a => a.user_id === currentUser?.id)
 
@@ -218,7 +225,9 @@ export default function SessionDetailClient({
   // ── Move to history ───────────────────────────────────────────────────
   const [closing, setClosing] = useState(false)
   async function handleClose() {
-    if (!window.confirm('确定将此接龙移入历史？')) return
+    showConfirm('移动到历史', '接龙将进入只读状态，所有数据将保留但无法修改。确定继续？', doClose)
+  }
+  async function doClose() {
     setClosing(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from('sessions') as any)
@@ -262,7 +271,9 @@ export default function SessionDetailClient({
   }
 
   async function handleRemoveAdmin(userId: string) {
-    if (!window.confirm('确定移除此管理员？')) return
+    showConfirm('移除管理员', '确定移除此管理员？移除后他们将失去管理权限。', () => doRemoveAdmin(userId))
+  }
+  async function doRemoveAdmin(userId: string) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from('session_admins') as any)
       .delete().eq('session_id', session.id).eq('user_id', userId)
@@ -368,6 +379,32 @@ export default function SessionDetailClient({
   // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
+
+      {/* Confirm dialog */}
+      {confirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirm(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3">
+            <h3 className="text-base font-bold text-gray-900">{confirm.title}</h3>
+            <p className="text-sm text-gray-500 leading-relaxed">{confirm.message}</p>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold
+                           active:bg-gray-200 transition-colors">
+                取消
+              </button>
+              <button
+                onClick={() => { const fn = confirm.onConfirm; setConfirm(null); fn() }}
+                className={`flex-1 py-2.5 rounded-xl text-white text-sm font-semibold
+                            active:opacity-80 transition-colors
+                            ${confirm.danger !== false ? 'bg-red-500' : 'bg-brand-600'}`}>
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -888,7 +925,9 @@ function PaymentSection({
 
   async function removeMethod(method: PaymentMethod) {
     setMenuOpenId(null)
-    if (!window.confirm(`确定删除收款人"${method.label}"？`)) return
+    showConfirm('删除收款人', `确定删除收款人"${method.label}"？`, () => doRemoveMethod(method))
+  }
+  async function doRemoveMethod(method: PaymentMethod) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from('payment_methods') as any)
       .delete().eq('id', method.id)
