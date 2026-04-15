@@ -1,3 +1,5 @@
+export const runtime = 'nodejs'  // nodemailer requires Node.js, not Edge
+
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
@@ -34,6 +36,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
+  const courtEmail = process.env.COURT_EMAIL
+  const gmailUser  = process.env.GMAIL_USER
+  const gmailPass  = process.env.GMAIL_APP_PASSWORD
+
+  if (!courtEmail || !gmailUser || !gmailPass) {
+    const missing = [
+      !courtEmail  && 'COURT_EMAIL',
+      !gmailUser   && 'GMAIL_USER',
+      !gmailPass   && 'GMAIL_APP_PASSWORD',
+    ].filter(Boolean).join(', ')
+    return NextResponse.json({ error: `Missing env vars: ${missing}` }, { status: 500 })
+  }
+
   const names = participants.map((p, i) => {
     const nickname = (p.profile as any)?.nickname
     const name = nickname && nickname !== p.display_name
@@ -42,13 +57,8 @@ export async function POST(req: NextRequest) {
     return `${i + 1}. ${name}`
   })
 
-  const courtEmail = process.env.COURT_EMAIL
-  const gmailUser  = process.env.GMAIL_USER
-  const gmailPass  = process.env.GMAIL_APP_PASSWORD
-
-  if (!courtEmail || !gmailUser || !gmailPass) {
-    return NextResponse.json({ error: 'Email not configured on server' }, { status: 500 })
-  }
+  const subject = `预约名单 — ${session.title}`
+  const body = `${session.title} 正式成员名单（${participants.length} 人）：\n\n${names.join('\n')}`
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -56,9 +66,6 @@ export async function POST(req: NextRequest) {
     secure: true,
     auth: { user: gmailUser, pass: gmailPass },
   })
-
-  const subject = `预约名单 — ${session.title}`
-  const body = `${session.title} 正式成员名单（${participants.length} 人）：\n\n${names.join('\n')}`
 
   await transporter.sendMail({
     from: `菜狗羽球 <${gmailUser}>`,

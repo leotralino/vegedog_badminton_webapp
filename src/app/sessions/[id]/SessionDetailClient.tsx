@@ -239,8 +239,23 @@ export default function SessionDetailClient({
   }
 
   // ── Send court email ─────────────────────────────────────────────────
-  const [sending, setSending] = useState(false)
-  async function handleSendCourtEmail() {
+  const [sending,      setSending]      = useState(false)
+  const [emailPreview, setEmailPreview] = useState<{ subject: string; body: string } | null>(null)
+
+  function handlePreviewCourtEmail() {
+    const names = joined.map((p, i) => {
+      const nick = p.profile?.nickname
+      const name = nick && nick !== p.display_name ? `${p.display_name} (${nick})` : p.display_name
+      return `${i + 1}. ${name}`
+    })
+    setEmailPreview({
+      subject: `预约名单 — ${session.title}`,
+      body: `${session.title} 正式成员名单（${joined.length} 人）：\n\n${names.join('\n')}`,
+    })
+  }
+
+  async function doSendCourtEmail() {
+    setEmailPreview(null)
     setSending(true)
     const res = await fetch('/api/send-court-email', {
       method: 'POST',
@@ -432,6 +447,34 @@ export default function SessionDetailClient({
         </div>
       )}
 
+      {/* Email preview dialog */}
+      {emailPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setEmailPreview(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col max-h-[80vh]">
+            <div className="px-5 pt-5 pb-3 border-b border-gray-100">
+              <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">邮件预览</p>
+              <p className="text-sm font-semibold text-gray-900">{emailPreview.subject}</p>
+            </div>
+            <pre className="px-5 py-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed overflow-y-auto flex-1 font-sans">
+              {emailPreview.body}
+            </pre>
+            <div className="flex gap-2 px-5 pb-5 pt-3 border-t border-gray-100">
+              <button onClick={() => setEmailPreview(null)}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold
+                           active:bg-gray-200 transition-colors">
+                取消
+              </button>
+              <button onClick={doSendCourtEmail}
+                className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold
+                           active:opacity-80 transition-colors">
+                确认发送
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl
@@ -489,7 +532,7 @@ export default function SessionDetailClient({
         )}
         {isAdmin && session.status === 'locked' && (
           <div className="flex gap-2 mt-2">
-            <button onClick={handleSendCourtEmail} disabled={sending}
+            <button onClick={handlePreviewCourtEmail} disabled={sending}
               className="flex-1 py-2 rounded-xl bg-brand-50 text-brand-700 text-sm font-semibold
                          active:bg-brand-100 disabled:opacity-50 transition-colors">
               {sending ? '发送中…' : '✉️ 发给球馆'}
