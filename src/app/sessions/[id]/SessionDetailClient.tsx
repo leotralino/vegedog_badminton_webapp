@@ -33,7 +33,7 @@ const PAY_CLASS: Record<string, string> = {
   unpaid: 'bg-red-100 text-red-700',
   waived: 'bg-orange-100 text-orange-700',
 }
-const PAY_LABEL: Record<string, string> = { paid:'已付 ✓', unpaid:'未付', waived:'已免' }
+const PAY_LABEL: Record<string, string> = { paid:'已付 ✓', unpaid:'未支付', waived:'已免' }
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
@@ -836,7 +836,7 @@ function ParticipantRow({
               ${payRecord?.status === 'paid'
                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                 : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-            {payRecord?.status === 'paid' ? '已付 ✓' : '未付'}
+            {payRecord?.status === 'paid' ? '已付 ✓' : '未支付'}
           </button>
         )}
 
