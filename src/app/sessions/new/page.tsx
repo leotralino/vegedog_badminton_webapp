@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { defaultStartsAt, defaultWithdrawDeadline, roundTo15, localToPacificISO } from '@/lib/dates'
 import { PRESET_LOCATIONS } from '@/lib/locations'
+import type { Profile } from '@/lib/types'
 
 const DEFAULT_NOTES = `周三6pm前只接受一位+1
 之后不限量+1
@@ -115,6 +116,30 @@ export default function NewSessionPage() {
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
+  // Co-admin picker
+  const [coAdmins,          setCoAdmins]          = useState<Profile[]>([])
+  const [adminSearch,       setAdminSearch]       = useState('')
+  const [adminCandidates,   setAdminCandidates]   = useState<Profile[]>([])
+  const [adminDropOpen,     setAdminDropOpen]     = useState(false)
+  const adminInputRef = useRef<HTMLInputElement>(null)
+
+  const searchAdmins = useCallback(async (q: string) => {
+    if (!q.trim()) { setAdminCandidates([]); return }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase.from('profiles') as any)
+      .select('id, nickname, avatar_url')
+      .ilike('nickname', `%${q.trim()}%`)
+      .limit(6)
+    setAdminCandidates(
+      (data ?? []).filter((p: Profile) => !coAdmins.some(a => a.id === p.id))
+    )
+  }, [coAdmins, supabase])
+
+  useEffect(() => {
+    const timer = setTimeout(() => searchAdmins(adminSearch), 200)
+    return () => clearTimeout(timer)
+  }, [adminSearch, searchAdmins])
+
   function set(key: string, value: string) {
     dirtyRef.current = true
     setForm(f => ({ ...f, [key]: value }))
@@ -171,8 +196,18 @@ export default function NewSessionPage() {
         .single() as { data: { id: string } | null; error: unknown }
 
       if (dbErr) throw dbErr
+      const sessionId = (data as { id: string }).id
+
+      // Insert co-admins (initiator already added by DB trigger)
+      if (coAdmins.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.from('session_admins') as any).insert(
+          coAdmins.map(p => ({ session_id: sessionId, user_id: p.id }))
+        )
+      }
+
       dirtyRef.current = false  // clear guard before navigating
-      router.push(`/sessions/${(data as { id: string }).id}`)
+      router.push(`/sessions/${sessionId}`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '出现错误，请重试')
     } finally {
@@ -335,6 +370,60 @@ export default function NewSessionPage() {
             onChange={e => set('notes', e.target.value)}
             placeholder="费用、规则、注意事项等…"
           />
+        </div>
+
+        {/* Co-admin picker */}
+        <div className="card space-y-3">
+          <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">管理员</h2>
+          <p className="text-xs text-gray-400">你会自动成为管理员，可在此添加其他人。</p>
+
+          {coAdmins.length > 0 && (
+            <div className="space-y-1.5">
+              {coAdmins.map(p => (
+                <div key={p.id} className="flex items-center gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.id}`}
+                    alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0 object-cover" />
+                  <span className="text-sm text-gray-700 flex-1">{p.nickname}</span>
+                  <button type="button" onClick={() => setCoAdmins(prev => prev.filter(a => a.id !== p.id))}
+                    className="text-xs text-red-400 hover:text-red-600 px-1.5 py-0.5 rounded transition-colors">
+                    移除
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="relative">
+            <input
+              ref={adminInputRef}
+              type="text"
+              value={adminSearch}
+              onChange={e => { setAdminSearch(e.target.value); setAdminDropOpen(true) }}
+              onFocus={() => setAdminDropOpen(true)}
+              onBlur={() => setTimeout(() => { setAdminDropOpen(false); setAdminSearch(''); setAdminCandidates([]) }, 150)}
+              placeholder="搜索用户昵称…"
+              className="input text-sm"
+            />
+            {adminDropOpen && adminCandidates.length > 0 && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100
+                              rounded-xl shadow-lg overflow-hidden">
+                {adminCandidates.map(p => (
+                  <button key={p.id} type="button"
+                    onMouseDown={() => {
+                      setCoAdmins(prev => [...prev, p])
+                      setAdminSearch(''); setAdminCandidates([]); setAdminDropOpen(false)
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.id}`}
+                      alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0 object-cover" />
+                    <span>{p.nickname}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {error && (

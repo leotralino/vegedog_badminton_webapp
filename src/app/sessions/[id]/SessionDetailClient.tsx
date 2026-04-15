@@ -250,20 +250,31 @@ export default function SessionDetailClient({
   }
 
   // ── Admin management ─────────────────────────────────────────────────────
-  const [adminSearchOpen,  setAdminSearchOpen]  = useState(false)
-  const [adminSearch,      setAdminSearch]      = useState('')
+  const [adminSearchOpen,   setAdminSearchOpen]   = useState(false)
+  const [adminSearch,       setAdminSearch]       = useState('')
+  const [adminCandidates,   setAdminCandidates]   = useState<Profile[]>([])
   const adminInputRef = useRef<HTMLInputElement>(null)
 
-  const adminCandidates = participants.filter(p =>
-    !admins.some(a => a.user_id === p.user_id) &&
-    (p.profile?.nickname ?? p.display_name).toLowerCase().includes(adminSearch.toLowerCase())
-  ).filter((p, i, arr) => arr.findIndex(x => x.user_id === p.user_id) === i) // unique by user
+  useEffect(() => {
+    if (!adminSearch.trim()) { setAdminCandidates([]); return }
+    const timer = setTimeout(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase.from('profiles') as any)
+        .select('id, nickname, avatar_url')
+        .ilike('nickname', `%${adminSearch.trim()}%`)
+        .limit(6)
+      setAdminCandidates(
+        (data ?? []).filter((p: Profile) => !admins.some(a => a.user_id === p.id))
+      )
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [adminSearch, admins, supabase])
 
-  async function handleAddAdmin(p: ParticipantWithProfile) {
-    setAdminSearch(''); setAdminSearchOpen(false)
+  async function handleAddAdmin(profile: Profile) {
+    setAdminSearch(''); setAdminSearchOpen(false); setAdminCandidates([])
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.from('session_admins') as any)
-      .insert({ session_id: session.id, user_id: p.user_id })
+      .insert({ session_id: session.id, user_id: profile.id })
       .select(`session_id, user_id, created_at, profile:profiles!user_id(id, nickname, avatar_url)`)
       .single()
     if (error) showToast(error.message, false)
@@ -508,20 +519,20 @@ export default function SessionDetailClient({
                   ref={adminInputRef}
                   value={adminSearch}
                   onChange={e => setAdminSearch(e.target.value)}
-                  placeholder="搜索参与者…"
+                  placeholder="搜索用户昵称…"
                   className="input text-sm"
-                  onBlur={() => setTimeout(() => { setAdminSearchOpen(false); setAdminSearch('') }, 150)}
+                  onBlur={() => setTimeout(() => { setAdminSearchOpen(false); setAdminSearch(''); setAdminCandidates([]) }, 150)}
                 />
                 {adminCandidates.length > 0 && (
                   <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100
                                   rounded-xl shadow-lg overflow-hidden">
-                    {adminCandidates.slice(0, 5).map(p => (
-                      <button key={p.user_id} onMouseDown={() => handleAddAdmin(p)}
+                    {adminCandidates.map(p => (
+                      <button key={p.id} onMouseDown={() => handleAddAdmin(p)}
                         className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={p.profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
-                          alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0" />
-                        <span>{p.profile?.nickname ?? p.display_name}</span>
+                        <img src={p.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.id}`}
+                          alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0 object-cover" />
+                        <span>{p.nickname}</span>
                       </button>
                     ))}
                   </div>
