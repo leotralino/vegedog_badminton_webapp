@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
-  const { sessionId } = await req.json()
+  const { sessionId, cc } = await req.json()
   if (!sessionId) return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 })
 
   // Verify caller is an admin for this session
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   })
 
   const subject = `预约名单 — ${session.title}`
-  const body = `${session.title} 正式成员名单（${participants.length} 人）：\n\n${names.join('\n')}`
+  const body = `您好，\n\n这是我们这次菜狗群正式成员名单：\n\n${names.join('\n')}\n\n谢谢！\n-菜狗群AI管理员`
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
   await transporter.sendMail({
     from: `菜狗羽球 <${gmailUser}>`,
     to: courtEmail,
+    ...(cc ? { cc } : {}),
     subject,
     text: body,
   })
