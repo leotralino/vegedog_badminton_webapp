@@ -691,6 +691,7 @@ export default function SessionDetailClient({
           onMethodAdded={m => setPaymentMethods(prev => [...prev, m])}
           onMethodUpdated={m => setPaymentMethods(prev => prev.map(x => x.id === m.id ? m : x))}
           onMethodRemoved={id => setPaymentMethods(prev => prev.filter(x => x.id !== id))}
+          showConfirm={showConfirm}
         />
       )}
 
@@ -867,6 +868,7 @@ function ParticipantRow({
 function PaymentSection({
   session, participants, paymentMethods, paymentRecords,
   currentUserId, currentUserNickname, isAdmin, onMethodAdded, onMethodUpdated, onMethodRemoved,
+  showConfirm,
 }: {
   session: SessionWithInitiator
   participants: ParticipantWithProfile[]
@@ -878,6 +880,7 @@ function PaymentSection({
   onMethodAdded:   (m: PaymentMethod) => void
   onMethodUpdated: (m: PaymentMethod) => void
   onMethodRemoved: (id: string) => void
+  showConfirm: (title: string, message: string, onConfirm: () => void, danger?: boolean) => void
 }) {
   const supabase  = createClient()
   const [showForm,        setShowForm]        = useState(false)
