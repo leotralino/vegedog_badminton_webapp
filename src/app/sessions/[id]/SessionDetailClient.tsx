@@ -836,7 +836,7 @@ function ParticipantRow({
               ${payRecord?.status === 'paid'
                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                 : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-            {payRecord?.status === 'paid' ? '已支付 ✓' : '未支付'}
+            {payRecord?.status === 'paid' ? '已付 ✓' : '未付'}
           </button>
         )}
 
