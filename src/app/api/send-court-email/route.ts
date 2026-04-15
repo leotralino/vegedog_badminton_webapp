@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
 
   await transporter.sendMail({
     from: `菜狗羽球 <${gmailUser}>`,
-    to: courtEmail,
+    to: courtEmail.split(',').map(e => e.trim()).filter(Boolean).join(', '),
     ...(cc ? { cc } : {}),
     subject,
     text: body,
