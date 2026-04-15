@@ -448,9 +448,6 @@ export default function SessionDetailClient({
               })()}
             </div>
           </div>
-          <div className="flex gap-2"><span>👤</span>
-            <span>发起：{(session as any).initiator?.nickname ?? '—'}</span>
-          </div>
           <div className="flex gap-2"><span>🏸</span>
             <span>{session.court_count}片场地 · {session.max_participants}人满员</span>
           </div>
