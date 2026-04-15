@@ -238,6 +238,21 @@ export default function SessionDetailClient({
     else router.push('/history')
   }
 
+  // ── Send court email ─────────────────────────────────────────────────
+  const [sending, setSending] = useState(false)
+  async function handleSendCourtEmail() {
+    setSending(true)
+    const res = await fetch('/api/send-court-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id }),
+    })
+    setSending(false)
+    const json = await res.json()
+    if (!res.ok) showToast(json.error ?? '发送失败', false)
+    else showToast(`✉️ 已发送 ${json.count} 人名单`)
+  }
+
   // ── Toggle stayed late ────────────────────────────────────────────────
   async function handleToggleLate(p: Participant) {
     const newVal = !p.stayed_late
@@ -473,11 +488,18 @@ export default function SessionDetailClient({
           </button>
         )}
         {isAdmin && session.status === 'locked' && (
-          <button onClick={handleClose} disabled={closing}
-            className="w-full mt-2 py-2 rounded-xl bg-gray-200 text-gray-600 text-sm font-semibold
-                       active:bg-gray-300 disabled:opacity-50 transition-colors">
-            {closing ? '移动中…' : '📁 移动到历史'}
-          </button>
+          <div className="flex gap-2 mt-2">
+            <button onClick={handleSendCourtEmail} disabled={sending}
+              className="flex-1 py-2 rounded-xl bg-brand-50 text-brand-700 text-sm font-semibold
+                         active:bg-brand-100 disabled:opacity-50 transition-colors">
+              {sending ? '发送中…' : '✉️ 发给球馆'}
+            </button>
+            <button onClick={handleClose} disabled={closing}
+              className="flex-1 py-2 rounded-xl bg-gray-200 text-gray-600 text-sm font-semibold
+                         active:bg-gray-300 disabled:opacity-50 transition-colors">
+              {closing ? '移动中…' : '📁 移动到历史'}
+            </button>
+          </div>
         )}
 
         {/* Admin management — visible to all admins */}
