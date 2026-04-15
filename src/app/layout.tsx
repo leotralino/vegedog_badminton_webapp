@@ -6,6 +6,15 @@ export const metadata: Metadata = {
   title: '菜狗 Badminton',
   description: 'Badminton session sign-up and queue management',
   manifest: '/manifest.json',
+  icons: {
+    apple: '/icon-180.png',
+    icon: '/icon-192.png',
+  },
+  openGraph: {
+    title: '菜狗 Badminton',
+    description: 'Badminton session sign-up and queue management',
+    images: [{ url: '/icon-512.png', width: 512, height: 512 }],
+  },
 }
 
 export const viewport: Viewport = {

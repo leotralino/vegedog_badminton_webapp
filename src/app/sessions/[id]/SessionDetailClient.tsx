@@ -423,7 +423,7 @@ export default function SessionDetailClient({
             <span className={`badge ${STATUS_CLASS[session.status]}`}>
               {STATUS_LABEL[session.status]}
             </span>
-            <ShareButton sessionId={session.id} />
+            <ShareButton sessionId={session.id} title={session.title} />
           </div>
         </div>
 
@@ -1181,13 +1181,13 @@ function PaymentSection({
 }
 
 // ── Share button ──────────────────────────────────────────────────────────
-function ShareButton({ sessionId }: { sessionId: string }) {
+function ShareButton({ sessionId, title }: { sessionId: string; title: string }) {
   const [copied, setCopied] = useState(false)
 
   async function share() {
     const url = `${location.origin}/sessions/${sessionId}`
     if (navigator.share) {
-      await navigator.share({ title: '菜狗 Badminton Session', url })
+      await navigator.share({ title, url })
     } else {
       await navigator.clipboard.writeText(url)
       setCopied(true)
