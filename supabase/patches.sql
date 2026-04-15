@@ -179,3 +179,113 @@ create policy "methods_update_admin" on public.payment_methods for update
 
 create policy "methods_delete_admin" on public.payment_methods for delete
   using (auth.uid() = (select initiator_id from public.sessions where id = session_id));
+
+-- Fix 12: Multi-admin support via session_admins table
+-- Each session can have multiple admins with equal rights.
+-- The initiator is auto-added on session creation and cannot be removed.
+
+create table if not exists public.session_admins (
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz default now(),
+  primary key (session_id, user_id)
+);
+
+alter table public.session_admins enable row level security;
+
+-- Any authenticated user can read the admin list (so the UI can compute isAdmin)
+create policy "admins_select_authenticated" on public.session_admins
+  for select using (auth.role() = 'authenticated');
+
+-- Any existing admin can add a new admin for that session
+create policy "admins_insert_admin" on public.session_admins
+  for insert with check (
+    exists (
+      select 1 from public.session_admins existing
+      where existing.session_id = session_admins.session_id
+        and existing.user_id = auth.uid()
+    )
+  );
+
+-- Any admin can remove another admin, but cannot remove the initiator (prevents lockout)
+create policy "admins_delete_admin" on public.session_admins
+  for delete using (
+    exists (
+      select 1 from public.session_admins existing
+      where existing.session_id = session_admins.session_id
+        and existing.user_id = auth.uid()
+    )
+    and user_id != (select initiator_id from public.sessions where id = session_id)
+  );
+
+-- Trigger: auto-add initiator to session_admins when a session is created
+create or replace function public.add_initiator_as_admin()
+returns trigger language plpgsql security definer as $$
+begin
+  insert into public.session_admins (session_id, user_id)
+  values (new.id, new.initiator_id)
+  on conflict do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_session_created on public.sessions;
+create trigger on_session_created
+  after insert on public.sessions
+  for each row execute function public.add_initiator_as_admin();
+
+-- Backfill: add initiators of all existing sessions
+insert into public.session_admins (session_id, user_id)
+select id, initiator_id from public.sessions
+on conflict do nothing;
+
+-- Update RLS policies that used initiator_id to use session_admins instead
+
+-- Sessions: any admin can lock/cancel/close
+drop policy if exists "sessions_update_own" on public.sessions;
+create policy "sessions_update_admin" on public.sessions for update
+  using (
+    exists (
+      select 1 from public.session_admins
+      where session_id = sessions.id and user_id = auth.uid()
+    )
+  );
+
+-- Participants: admin can toggle stayed_late on any row
+drop policy if exists "participants_update_admin" on public.participants;
+create policy "participants_update_admin" on public.participants for update
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.session_admins
+      where session_id = participants.session_id and user_id = auth.uid()
+    )
+  );
+
+-- Payment methods: any admin can insert/update/delete
+drop policy if exists "methods_insert_admin" on public.payment_methods;
+create policy "methods_insert_admin" on public.payment_methods for insert
+  with check (
+    exists (
+      select 1 from public.session_admins
+      where session_id = payment_methods.session_id and user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "methods_update_admin" on public.payment_methods;
+create policy "methods_update_admin" on public.payment_methods for update
+  using (
+    exists (
+      select 1 from public.session_admins
+      where session_id = payment_methods.session_id and user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "methods_delete_admin" on public.payment_methods;
+create policy "methods_delete_admin" on public.payment_methods for delete
+  using (
+    exists (
+      select 1 from public.session_admins
+      where session_id = payment_methods.session_id and user_id = auth.uid()
+    )
+  );

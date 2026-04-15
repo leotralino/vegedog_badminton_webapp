@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatSessionDate } from '@/lib/dates'
 import type {
   SessionWithInitiator, Participant, ParticipantWithProfile,
-  PaymentMethod, PaymentRecord, Profile, PaymentMethodType,
+  PaymentMethod, PaymentRecord, Profile, PaymentMethodType, SessionAdmin,
 } from '@/lib/types'
 import { presetAddress } from '@/lib/locations'
 
@@ -16,6 +16,7 @@ interface Props {
   initialParticipants: ParticipantWithProfile[]
   paymentMethods:      PaymentMethod[]
   paymentRecords:      PaymentRecord[]
+  initialAdmins:       SessionAdmin[]
   currentUser:         { id: string; profile: Profile | null } | null
 }
 
@@ -61,9 +62,10 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function openVenmo(accountRef: string, amount?: number | null) {
+function openVenmo(accountRef: string, amount?: number | null, appUsername?: string) {
   const username = accountRef.startsWith('@') ? accountRef.slice(1) : accountRef
-  const params = new URLSearchParams({ txn: 'pay', recipients: username, note: `菜狗 @${username}` })
+  const note = appUsername ? `${appUsername}` : `菜狗 @${username}`
+  const params = new URLSearchParams({ txn: 'pay', recipients: username, note })
   if (amount) params.set('amount', amount.toFixed(2))
   // Try app deep link first; fall back to web if app not installed
   window.location.href = `venmo://paycharge?${params}`
@@ -78,6 +80,7 @@ export default function SessionDetailClient({
   initialParticipants,
   paymentMethods: initialMethods,
   paymentRecords,
+  initialAdmins,
   currentUser,
 }: Props) {
   const supabase = createClient()
@@ -86,12 +89,13 @@ export default function SessionDetailClient({
   const [participants,    setParticipants]    = useState(initialParticipants)
   const [paymentMethods,  setPaymentMethods]  = useState(initialMethods)
   const [payRecords,      setPayRecords]      = useState(paymentRecords)
+  const [admins,          setAdmins]          = useState<SessionAdmin[]>(initialAdmins)
   const [joinName,  setJoinName]  = useState('')
   const [joining,   setJoining]   = useState(false)
   const [locking,   setLocking]   = useState(false)
   const [toast,     setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
 
-  const isAdmin = currentUser?.id === session.initiator_id
+  const isAdmin = admins.some(a => a.user_id === currentUser?.id)
 
   // ── Realtime subscriptions ────────────────────────────────────────────
   const refreshParticipants = useCallback(async () => {
@@ -235,6 +239,40 @@ export default function SessionDetailClient({
       .eq('id', p.id)
     if (error) { showToast(error.message, false); refreshParticipants() }
   }
+
+  // ── Admin management ─────────────────────────────────────────────────────
+  const [adminSearchOpen,  setAdminSearchOpen]  = useState(false)
+  const [adminSearch,      setAdminSearch]      = useState('')
+  const adminInputRef = useRef<HTMLInputElement>(null)
+
+  const adminCandidates = participants.filter(p =>
+    !admins.some(a => a.user_id === p.user_id) &&
+    (p.profile?.nickname ?? p.display_name).toLowerCase().includes(adminSearch.toLowerCase())
+  ).filter((p, i, arr) => arr.findIndex(x => x.user_id === p.user_id) === i) // unique by user
+
+  async function handleAddAdmin(p: ParticipantWithProfile) {
+    setAdminSearch(''); setAdminSearchOpen(false)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.from('session_admins') as any)
+      .insert({ session_id: session.id, user_id: p.user_id })
+      .select(`session_id, user_id, created_at, profile:profiles!user_id(id, nickname, avatar_url)`)
+      .single()
+    if (error) showToast(error.message, false)
+    else setAdmins(prev => [...prev, data as SessionAdmin])
+  }
+
+  async function handleRemoveAdmin(userId: string) {
+    if (!window.confirm('确定移除此管理员？')) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('session_admins') as any)
+      .delete().eq('session_id', session.id).eq('user_id', userId)
+    if (error) showToast(error.message, false)
+    else setAdmins(prev => prev.filter(a => a.user_id !== userId))
+  }
+
+  useEffect(() => {
+    if (adminSearchOpen) setTimeout(() => adminInputRef.current?.focus(), 50)
+  }, [adminSearchOpen])
 
   // ── Self-service payment toggle ───────────────────────────────────────────
   async function handleTogglePayment(participantId: string) {
@@ -397,6 +435,68 @@ export default function SessionDetailClient({
           </button>
         )}
 
+        {/* Admin management — visible to all admins */}
+        {isAdmin && session.status !== 'closed' && (
+          <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">管理员</p>
+            <div className="space-y-1.5">
+              {admins.map(a => (
+                <div key={a.user_id} className="flex items-center gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={(a.profile as any)?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${a.user_id}`}
+                    alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0 object-cover" />
+                  <span className="text-sm text-gray-700 flex-1">
+                    {(a.profile as any)?.nickname ?? a.user_id}
+                    {a.user_id === session.initiator_id && (
+                      <span className="ml-1.5 text-xs text-gray-400">（发起人）</span>
+                    )}
+                  </span>
+                  {/* Cannot remove the initiator */}
+                  {a.user_id !== session.initiator_id && (
+                    <button onClick={() => handleRemoveAdmin(a.user_id)}
+                      className="text-xs text-red-400 hover:text-red-600 px-1.5 py-0.5 rounded transition-colors">
+                      移除
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add admin */}
+            {!adminSearchOpen ? (
+              <button onClick={() => setAdminSearchOpen(true)}
+                className="text-xs text-brand-600 font-semibold">
+                + 添加管理员
+              </button>
+            ) : (
+              <div className="relative">
+                <input
+                  ref={adminInputRef}
+                  value={adminSearch}
+                  onChange={e => setAdminSearch(e.target.value)}
+                  placeholder="搜索参与者…"
+                  className="input text-sm"
+                  onBlur={() => setTimeout(() => { setAdminSearchOpen(false); setAdminSearch('') }, 150)}
+                />
+                {adminCandidates.length > 0 && (
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100
+                                  rounded-xl shadow-lg overflow-hidden">
+                    {adminCandidates.slice(0, 5).map(p => (
+                      <button key={p.user_id} onMouseDown={() => handleAddAdmin(p)}
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.profile?.avatar_url ?? `https://api.dicebear.com/9.x/thumbs/svg?seed=${p.user_id}`}
+                          alt="" className="w-6 h-6 rounded-full bg-gray-100 shrink-0" />
+                        <span>{p.profile?.nickname ?? p.display_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* Notes card — below meta */}
@@ -549,6 +649,7 @@ export default function SessionDetailClient({
           paymentMethods={paymentMethods}
           paymentRecords={payRecords}
           currentUserId={currentUser?.id}
+          currentUserNickname={currentUser?.profile?.nickname ?? undefined}
           isAdmin={isAdmin && session.status !== 'closed'}
           onMethodAdded={m => setPaymentMethods(prev => [...prev, m])}
           onMethodUpdated={m => setPaymentMethods(prev => prev.map(x => x.id === m.id ? m : x))}
@@ -728,13 +829,14 @@ function ParticipantRow({
 // ── Payment section ────────────────────────────────────────────────────────
 function PaymentSection({
   session, participants, paymentMethods, paymentRecords,
-  currentUserId, isAdmin, onMethodAdded, onMethodUpdated, onMethodRemoved,
+  currentUserId, currentUserNickname, isAdmin, onMethodAdded, onMethodUpdated, onMethodRemoved,
 }: {
   session: SessionWithInitiator
   participants: ParticipantWithProfile[]
   paymentMethods: PaymentMethod[]
   paymentRecords: PaymentRecord[]
   currentUserId?: string
+  currentUserNickname?: string
   isAdmin: boolean
   onMethodAdded:   (m: PaymentMethod) => void
   onMethodUpdated: (m: PaymentMethod) => void
@@ -884,7 +986,7 @@ function PaymentSection({
                 {method.amount != null && (
                   <span className="text-sm font-semibold text-gray-700">${method.amount.toFixed(2)}</span>
                 )}
-                <button onClick={() => openVenmo(method.account_ref, method.amount)}
+                <button onClick={() => openVenmo(method.account_ref, method.amount, `${session.title} @${currentUserNickname ?? 'Player'}`)}
                    className="px-3 py-1.5 rounded-lg text-sm font-bold text-white
                               bg-[#008CFF] active:opacity-80 transition-opacity">
                   Venmo 付款

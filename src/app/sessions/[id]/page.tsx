@@ -27,6 +27,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
     { data: participants },
     { data: paymentMethods },
     { data: paymentRecords },
+    { data: sessionAdmins },
     profileResult,
   ] = await Promise.all([
     supabase
@@ -36,6 +37,10 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       .order('queue_position'),
     supabase.from('payment_methods').select('*').eq('session_id', id),
     user ? supabase.from('payment_records').select('*').eq('session_id', id) : { data: [] },
+    supabase
+      .from('session_admins')
+      .select(`session_id, user_id, created_at, profile:profiles!user_id(id, nickname, avatar_url)`)
+      .eq('session_id', id),
     user ? supabase.from('profiles').select('*').eq('id', user.id).single() : { data: null },
   ])
 
@@ -48,6 +53,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
           initialParticipants={participants as any ?? []}
           paymentMethods={paymentMethods ?? []}
           paymentRecords={paymentRecords ?? []}
+          initialAdmins={sessionAdmins as any ?? []}
           currentUser={user ? { id: user.id, profile: profileResult.data } : null}
         />
       </main>

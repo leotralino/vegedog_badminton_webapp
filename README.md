@@ -35,6 +35,21 @@
 
 ---
 
+## 📖 Architecture Docs
+
+New to web apps or want to understand how this project is put together?
+
+**[docs/architecture.md](docs/architecture.md)** covers:
+- How the browser, Next.js server, and Supabase database fit together
+- Every database table and its columns
+- How login and auth tokens work
+- Row-Level Security — who can read/write which rows
+- Key flows: join, withdraw, lock, pay, move to history
+- How realtime live updates work
+- How concurrency (advisory locks) prevents double-booking
+
+---
+
 ## ✨ 核心功能
 
 - **自动化接龙**：一键参与报名，内置自动候补（Waitlist）机制。当正选名额空缺时，候补人员将按先后顺序自动填充。
@@ -55,11 +70,12 @@
 - [x] 历史记录：查看过去的活动
 
 ### 第二阶段：功能完善 (V1) — 开发中
-- [ ] 系统通知：通过微信或邮件推送报名状态变更
+- [ ] 在接龙里搜索用户+跳转至位置或夜场+时操作
+- [ ] 接龙开启通知：可以关注用户; 通过微信、邮件推送接龙开始
 - [ ] 自动付费统计
-- [ ] 后台活跃度、对战历史统计
 
 ### 第三阶段：增强模块
+- [ ] 后台活跃度、场地、对战历史统计
 - [ ] 菜狗杯：自动配对、ELO 排名、积分追踪
 
 ---

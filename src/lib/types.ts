@@ -83,6 +83,13 @@ export interface PaymentMethod {
   created_at:  string
 }
 
+export interface SessionAdmin {
+  session_id: string
+  user_id:    string
+  created_at: string
+  profile:    Pick<Profile, 'id' | 'nickname' | 'avatar_url'>
+}
+
 export type PaymentStatus = 'unpaid' | 'paid' | 'waived'
 
 export interface PaymentRecord {
