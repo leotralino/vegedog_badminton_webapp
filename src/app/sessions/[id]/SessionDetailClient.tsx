@@ -820,11 +820,6 @@ function ParticipantRow({
       {/* Name */}
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium text-gray-900 truncate block">{p.display_name}</span>
-        {payRecord && (
-          <span className="text-xs text-gray-400">
-            ${(payRecord.base_fee + payRecord.late_fee).toFixed(2)}
-          </span>
-        )}
       </div>
 
       {/* Actions */}
