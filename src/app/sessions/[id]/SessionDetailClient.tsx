@@ -241,7 +241,6 @@ export default function SessionDetailClient({
   // ── Send court email ─────────────────────────────────────────────────
   const [sending,      setSending]      = useState(false)
   const [emailPreview, setEmailPreview] = useState<{ subject: string; body: string } | null>(null)
-  const [emailCC,      setEmailCC]      = useState('')
 
   function handlePreviewCourtEmail() {
     const names = joined.map((p, i) => {
@@ -262,7 +261,7 @@ export default function SessionDetailClient({
     const res = await fetch('/api/send-court-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: session.id, cc: emailCC.trim() || undefined }),
+      body: JSON.stringify({ sessionId: session.id }),
     })
     setSending(false)
     const json = await res.json()
@@ -457,16 +456,6 @@ export default function SessionDetailClient({
             <div className="px-5 pt-5 pb-3 border-b border-gray-100">
               <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">邮件预览</p>
               <p className="text-sm font-semibold text-gray-900">{emailPreview.subject}</p>
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-gray-400 shrink-0">CC</span>
-                <input
-                  value={emailCC}
-                  onChange={e => setEmailCC(e.target.value)}
-                  placeholder="额外收件人，逗号分隔（可选）"
-                  className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none
-                             focus:border-brand-400 transition-colors"
-                />
-              </div>
             </div>
             <pre className="px-5 py-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed overflow-y-auto flex-1 font-sans">
               {emailPreview.body}

@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
-  const { sessionId, cc } = await req.json()
+  const { sessionId } = await req.json()
   if (!sessionId) return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 })
 
   // Verify caller is an admin for this session
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   await transporter.sendMail({
     from: `菜狗羽球 <${gmailUser}>`,
     to: courtEmail.split(',').map(e => e.trim()).filter(Boolean).join(', '),
-    ...(cc ? { cc } : {}),
+
     subject,
     text: body,
   })
