@@ -180,6 +180,25 @@ create policy "methods_update_admin" on public.payment_methods for update
 create policy "methods_delete_admin" on public.payment_methods for delete
   using (auth.uid() = (select initiator_id from public.sessions where id = session_id));
 
+-- Fix 13: Follow system for session notifications
+create table if not exists public.follows (
+  follower_id  uuid not null references public.profiles(id) on delete cascade,
+  following_id uuid not null references public.profiles(id) on delete cascade,
+  created_at   timestamptz default now(),
+  primary key (follower_id, following_id)
+);
+
+alter table public.follows enable row level security;
+
+create policy "follows_select" on public.follows
+  for select using (auth.role() = 'authenticated');
+
+create policy "follows_insert" on public.follows
+  for insert with check (auth.uid() = follower_id);
+
+create policy "follows_delete" on public.follows
+  for delete using (auth.uid() = follower_id);
+
 -- Fix 12: Multi-admin support via session_admins table
 -- Each session can have multiple admins with equal rights.
 -- The initiator is auto-added on session creation and cannot be removed.

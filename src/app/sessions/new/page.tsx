@@ -206,6 +206,13 @@ export default function NewSessionPage() {
         )
       }
 
+      // Notify followers (fire-and-forget)
+      fetch('/api/notify-followers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      }).catch(() => {})
+
       dirtyRef.current = false  // clear guard before navigating
       router.push(`/sessions/${sessionId}`)
     } catch (err: unknown) {
