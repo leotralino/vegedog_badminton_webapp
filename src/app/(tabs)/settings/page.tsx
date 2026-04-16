@@ -248,7 +248,7 @@ function StatsTab() {
   const today    = new Date()
   const todayStr = toLocalDateStr(today)
   const gridStart = new Date(today)
-  gridStart.setMonth(gridStart.getMonth() - 4)
+  gridStart.setMonth(gridStart.getMonth() - 5)
   gridStart.setDate(gridStart.getDate() - gridStart.getDay()) // snap to Sunday
 
   const weeks: Date[][] = []
