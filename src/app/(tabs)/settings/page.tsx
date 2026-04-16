@@ -189,16 +189,14 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
 }
 
 // ── Stats tab ──────────────────────────────────────────────────────────────
+const toLocalDateStr = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 function StatsTab() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [stats,   setStats]   = useState({
-    joined:     0,
-    plusOne:    0,
-    waitlisted: 0,
-    initiated:  0,
-    stayedLate: 0,
-  })
+  const [stats,   setStats]   = useState({ joined: 0, plusOne: 0, waitlisted: 0, initiated: 0, stayedLate: 0 })
+  const [participatedDates, setParticipatedDates] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     async function load() {
@@ -211,7 +209,7 @@ function StatsTab() {
         { count: initiated },
       ] = await Promise.all([
         supabase.from('participants')
-          .select('session_id, stayed_late')
+          .select('session_id, stayed_late, sessions(starts_at)')
           .eq('user_id', user.id)
           .in('status', ['joined', 'withdrawn', 'late_withdraw']),
         supabase.from('participants').select('*', { count: 'exact', head: true })
@@ -220,9 +218,16 @@ function StatsTab() {
           .eq('initiator_id', user.id),
       ])
 
-      const rows = activeRows ?? []
-      const joinedSessions   = new Set(rows.map(r => r.session_id))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = (activeRows ?? []) as any[]
+      const joinedSessions     = new Set(rows.map(r => r.session_id))
       const stayedLateSessions = new Set(rows.filter(r => r.stayed_late).map(r => r.session_id))
+
+      const dates = new Set<string>()
+      rows.forEach(r => {
+        if (r.sessions?.starts_at)
+          dates.add(toLocalDateStr(new Date(r.sessions.starts_at)))
+      })
 
       setStats({
         joined:     joinedSessions.size,
@@ -231,12 +236,28 @@ function StatsTab() {
         initiated:  initiated  ?? 0,
         stayedLate: stayedLateSessions.size,
       })
+      setParticipatedDates(dates)
       setLoading(false)
     }
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <div className="card animate-pulse h-48" />
+
+  // Build rolling 4-month grid starting from the Sunday before 4 months ago
+  const today    = new Date()
+  const todayStr = toLocalDateStr(today)
+  const gridStart = new Date(today)
+  gridStart.setMonth(gridStart.getMonth() - 4)
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay()) // snap to Sunday
+
+  const weeks: Date[][] = []
+  const cur = new Date(gridStart)
+  while (cur <= today) {
+    const week: Date[] = []
+    for (let d = 0; d < 7; d++) { week.push(new Date(cur)); cur.setDate(cur.getDate() + 1) }
+    weeks.push(week)
+  }
 
   const items = [
     { label: '参与接龙次数', value: stats.joined,     emoji: '🏸' },
@@ -246,18 +267,70 @@ function StatsTab() {
     { label: '加时次数',     value: stats.stayedLate, emoji: '⏰' },
   ]
 
+  const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
+
   return (
-    <div className="card">
-      <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-4">接龙统计</h2>
-      <div className="grid grid-cols-2 gap-3">
-        {items.map(({ label, value, emoji }, i) => (
-          <div key={label}
-            className={`bg-gray-50 rounded-xl p-4 text-center${i === items.length - 1 && items.length % 2 !== 0 ? ' col-span-2' : ''}`}>
-            <p className="text-2xl mb-1">{emoji}</p>
-            <p className="text-3xl font-bold text-gray-900">{value}</p>
-            <p className="text-xs text-gray-500 mt-1">{label}</p>
+    <div className="space-y-3">
+      {/* Stats counters */}
+      <div className="card">
+        <div className="grid grid-cols-2 gap-2">
+          {items.map(({ label, value, emoji }, i) => (
+            <div key={label}
+              className={`bg-gray-50 rounded-xl p-3 text-center${i === items.length - 1 && items.length % 2 !== 0 ? ' col-span-2' : ''}`}>
+              <p className="text-lg mb-0.5">{emoji}</p>
+              <p className="text-2xl font-bold text-gray-900">{value}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Participation heatmap */}
+      <div className="card">
+        <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">参与记录</h2>
+        <div className="overflow-x-auto">
+          <div className="flex gap-1 min-w-fit">
+            {/* Day labels */}
+            <div className="flex flex-col gap-[3px] pt-[18px] mr-1">
+              {DAY_LABELS.map((label, i) => (
+                <div key={i} className="h-[10px] w-5 text-[9px] text-gray-400 leading-[10px] text-right">
+                  {label}
+                </div>
+              ))}
+            </div>
+            {/* Columns */}
+            <div>
+              {/* Month labels */}
+              <div className="flex gap-[3px] mb-1">
+                {weeks.map((week, wi) => {
+                  const newMonth = wi === 0 || week[0].getMonth() !== weeks[wi - 1][0].getMonth()
+                  return (
+                    <div key={wi} className="w-[10px] text-[9px] text-gray-400 overflow-visible whitespace-nowrap">
+                      {newMonth ? week[0].toLocaleString('en-US', { month: 'short' }) : ''}
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Week columns */}
+              <div className="flex gap-[3px]">
+                {weeks.map((week, wi) => (
+                  <div key={wi} className="flex flex-col gap-[3px]">
+                    {week.map((day, di) => {
+                      const ds = toLocalDateStr(day)
+                      const future  = ds > todayStr
+                      const active  = !future && participatedDates.has(ds)
+                      return (
+                        <div key={di} className={`w-[10px] h-[10px] rounded-[2px] ${
+                          future ? 'bg-gray-50' : active ? 'bg-green-500' : 'bg-gray-100'
+                        }`} />
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        ))}
+        </div>
       </div>
     </div>
   )
