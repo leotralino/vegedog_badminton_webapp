@@ -724,7 +724,7 @@ export default function SessionDetailClient({
             <div key={p.id} className="flex items-center justify-between text-sm py-1">
               <span className="text-gray-500 line-through">{p.display_name}</span>
               {p.status === 'late_withdraw' && (
-                <span className="badge bg-orange-100 text-orange-700">Late ⚠️</span>
+                <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
               )}
             </div>
           ))}

@@ -118,9 +118,10 @@ function StatsTab() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [stats,   setStats]   = useState({
-    joined:    0,
+    joined:     0,
+    plusOne:    0,
     waitlisted: 0,
-    initiated: 0,
+    initiated:  0,
     stayedLate: 0,
   })
 
@@ -130,26 +131,30 @@ function StatsTab() {
       if (!user) return
 
       const [
-        { count: joined },
+        { data: activeRows },
         { count: waitlisted },
         { count: initiated },
-        { count: stayedLate },
       ] = await Promise.all([
-        supabase.from('participants').select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id).in('status', ['joined', 'withdrawn', 'late_withdraw']),
+        supabase.from('participants')
+          .select('session_id, stayed_late')
+          .eq('user_id', user.id)
+          .in('status', ['joined', 'withdrawn', 'late_withdraw']),
         supabase.from('participants').select('*', { count: 'exact', head: true })
           .eq('user_id', user.id).eq('status', 'waitlist'),
         supabase.from('sessions').select('*', { count: 'exact', head: true })
           .eq('initiator_id', user.id),
-        supabase.from('participants').select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id).eq('stayed_late', true),
       ])
 
+      const rows = activeRows ?? []
+      const joinedSessions   = new Set(rows.map(r => r.session_id))
+      const stayedLateSessions = new Set(rows.filter(r => r.stayed_late).map(r => r.session_id))
+
       setStats({
-        joined:    joined    ?? 0,
+        joined:     joinedSessions.size,
+        plusOne:    rows.length - joinedSessions.size,
         waitlisted: waitlisted ?? 0,
-        initiated: initiated ?? 0,
-        stayedLate: stayedLate ?? 0,
+        initiated:  initiated  ?? 0,
+        stayedLate: stayedLateSessions.size,
       })
       setLoading(false)
     }
@@ -160,6 +165,7 @@ function StatsTab() {
 
   const items = [
     { label: '参与接龙次数', value: stats.joined,     emoji: '🏸' },
+    { label: '帮助+1次数',   value: stats.plusOne,    emoji: '👥' },
     { label: '候补次数',     value: stats.waitlisted, emoji: '⏳' },
     { label: '发起接龙次数', value: stats.initiated,  emoji: '📋' },
     { label: '加时次数',     value: stats.stayedLate, emoji: '⏰' },
@@ -169,8 +175,9 @@ function StatsTab() {
     <div className="card">
       <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-4">接龙统计</h2>
       <div className="grid grid-cols-2 gap-3">
-        {items.map(({ label, value, emoji }) => (
-          <div key={label} className="bg-gray-50 rounded-xl p-4 text-center">
+        {items.map(({ label, value, emoji }, i) => (
+          <div key={label}
+            className={`bg-gray-50 rounded-xl p-4 text-center${i === items.length - 1 && items.length % 2 !== 0 ? ' col-span-2' : ''}`}>
             <p className="text-2xl mb-1">{emoji}</p>
             <p className="text-3xl font-bold text-gray-900">{value}</p>
             <p className="text-xs text-gray-500 mt-1">{label}</p>
