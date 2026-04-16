@@ -14,11 +14,15 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
   const [error,         setError]         = useState('')
-  const [success,       setSuccess]       = useState('')
   const [nickname,      setNickname]      = useState('')
   const [venmoUsername, setVenmoUsername] = useState('')
   const [avatarUrl,     setAvatarUrl]     = useState('')
   const [email,         setEmail]         = useState('')
+
+  const [editingNickname, setEditingNickname] = useState(false)
+  const [editingVenmo,    setEditingVenmo]    = useState(false)
+  const [draftNickname,   setDraftNickname]   = useState('')
+  const [draftVenmo,      setDraftVenmo]      = useState('')
 
   useEffect(() => {
     async function load() {
@@ -37,10 +41,11 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault()
-    setError(''); setSuccess('')
-    if (!nickname.trim()) { setError('昵称不能为空'); return }
+  async function saveField(field: 'nickname' | 'venmo') {
+    setError('')
+    const newNickname = field === 'nickname' ? draftNickname.trim() : nickname
+    const newVenmo    = field === 'venmo'    ? draftVenmo.trim()    : venmoUsername
+    if (!newNickname) { setError('昵称不能为空'); return }
     setSaving(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -48,13 +53,14 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: dbErr } = await (supabase.from('profiles') as any).upsert({
         id:             user.id,
-        nickname:       nickname.trim(),
-        venmo_username: venmoUsername.trim() || null,
+        nickname:       newNickname,
+        venmo_username: newVenmo || null,
         avatar_url:     user.user_metadata?.avatar_url || null,
         updated_at:     new Date().toISOString(),
       })
       if (dbErr) throw dbErr
-      setSuccess('已保存')
+      if (field === 'nickname') { setNickname(newNickname); setEditingNickname(false) }
+      else                      { setVenmoUsername(newVenmo); setEditingVenmo(false) }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '出现错误，请重试')
     } finally {
@@ -73,36 +79,96 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
             className="w-20 h-20 rounded-full border-2 border-brand-200 shadow object-cover" />
         </div>
       )}
-      <form onSubmit={save} className="space-y-4">
-        <div className="card space-y-3">
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">邮箱</label>
-            <input className="input bg-gray-50 cursor-not-allowed" value={email} disabled />
+
+      <div className="card space-y-4">
+        {/* Email — read-only */}
+        <div>
+          <label className="text-sm font-medium text-gray-700 mb-1 block">邮箱</label>
+          <p className="text-sm text-gray-500 py-2">{email}</p>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        {/* Nickname */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">昵称</label>
+            {!editingNickname && (
+              <button
+                onClick={() => { setDraftNickname(nickname); setEditingNickname(true); setError('') }}
+                className="text-xs text-brand-600 font-medium px-2 py-1 rounded hover:bg-brand-50 transition-colors">
+                编辑
+              </button>
+            )}
           </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">昵称 *</label>
-            <input className="input" placeholder="别人看到的名字"
-              value={nickname} onChange={e => setNickname(e.target.value)} required />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">
+          {editingNickname ? (
+            <>
+              <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
+                为了方便接龙与查账，请不要使用特殊字符或emoji。谢谢！
+              </p>
+              <input className="input" placeholder="别人看到的名字"
+                value={draftNickname} onChange={e => setDraftNickname(e.target.value)} autoFocus />
+              <div className="flex gap-2">
+                <button onClick={() => saveField('nickname')} disabled={saving}
+                  className="btn-primary py-1.5 text-sm flex-1">
+                  {saving ? '保存中…' : '保存'}
+                </button>
+                <button onClick={() => { setEditingNickname(false); setError('') }}
+                  className="flex-1 py-1.5 text-sm rounded-xl border border-gray-200 text-gray-600 font-medium">
+                  取消
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-800">{nickname || <span className="text-gray-400">未设置</span>}</p>
+          )}
+        </div>
+
+        <hr className="border-gray-100" />
+
+        {/* Venmo */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">
               Venmo 账号<span className="ml-1 font-normal text-gray-400">（选填）</span>
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
-              <input className="input pl-7" placeholder="your-venmo-handle"
-                value={venmoUsername}
-                onChange={e => setVenmoUsername(e.target.value.replace(/^@/, ''))} />
-            </div>
-            <p className="text-xs text-gray-400 mt-1">其他人在场次中可以看到你的付款按钮</p>
+            {!editingVenmo && (
+              <button
+                onClick={() => { setDraftVenmo(venmoUsername); setEditingVenmo(true); setError('') }}
+                className="text-xs text-brand-600 font-medium px-2 py-1 rounded hover:bg-brand-50 transition-colors">
+                编辑
+              </button>
+            )}
           </div>
+          {editingVenmo ? (
+            <>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                <input className="input pl-7" placeholder="your-venmo-handle"
+                  value={draftVenmo} onChange={e => setDraftVenmo(e.target.value.replace(/^@/, ''))} autoFocus />
+              </div>
+              <p className="text-xs text-gray-400">其他人在场次中可以看到你的付款按钮</p>
+              <div className="flex gap-2">
+                <button onClick={() => saveField('venmo')} disabled={saving}
+                  className="btn-primary py-1.5 text-sm flex-1">
+                  {saving ? '保存中…' : '保存'}
+                </button>
+                <button onClick={() => { setEditingVenmo(false); setError('') }}
+                  className="flex-1 py-1.5 text-sm rounded-xl border border-gray-200 text-gray-600 font-medium">
+                  取消
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-800">
+              {venmoUsername ? `@${venmoUsername}` : <span className="text-gray-400">未设置</span>}
+            </p>
+          )}
         </div>
-        {error   && <p className="text-sm text-red-500   bg-red-50   rounded-xl px-4 py-3">{error}</p>}
-        {success && <p className="text-sm text-green-600 bg-green-50 rounded-xl px-4 py-3">{success}</p>}
-        <button type="submit" disabled={saving} className="btn-primary">
-          {saving ? '保存中…' : '保存'}
-        </button>
-      </form>
+
+        {error && <p className="text-sm text-red-500 bg-red-50 rounded-xl px-4 py-3">{error}</p>}
+      </div>
+
       <div className="card">
         <button onClick={onSignOut}
           className="w-full text-sm text-red-500 font-medium py-1 hover:text-red-700 transition-colors">
