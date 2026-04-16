@@ -41,11 +41,20 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Allows letters (all scripts: CJK, Latin, Korean, Arabic…), numbers,
+  // combining marks, spaces, hyphens, underscores, and periods.
+  // Blocks emojis, symbols, and other non-language characters.
+  const NICKNAME_RE = /^[\p{L}\p{N}\p{M}\s\-_.]+$/u
+
   async function saveField(field: 'nickname' | 'venmo') {
     setError('')
     const newNickname = field === 'nickname' ? draftNickname.trim() : nickname
     const newVenmo    = field === 'venmo'    ? draftVenmo.trim()    : venmoUsername
     if (!newNickname) { setError('昵称不能为空'); return }
+    if (field === 'nickname' && !NICKNAME_RE.test(newNickname)) {
+      setError('为了方便接龙与查账，请不要使用特殊字符或emoji。谢谢！')
+      return
+    }
     setSaving(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -170,7 +179,7 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
       </div>
 
       <div className="card">
-        <button onClick={onSignOut}
+        <button onClick={() => { if (window.confirm('你确定要退出登录吗？')) onSignOut() }}
           className="w-full text-sm text-red-500 font-medium py-1 hover:text-red-700 transition-colors">
           退出登录
         </button>
@@ -231,7 +240,7 @@ function StatsTab() {
 
   const items = [
     { label: '参与接龙次数', value: stats.joined,     emoji: '🏸' },
-    { label: '帮助+1次数',   value: stats.plusOne,    emoji: '👥' },
+    { label: '帮助+1人数',   value: stats.plusOne,    emoji: '👥' },
     { label: '候补次数',     value: stats.waitlisted, emoji: '⏳' },
     { label: '发起接龙次数', value: stats.initiated,  emoji: '📋' },
     { label: '加时次数',     value: stats.stayedLate, emoji: '⏰' },
