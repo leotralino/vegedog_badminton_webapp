@@ -9,7 +9,16 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient()
-    await supabase.auth.exchangeCodeForSession(code)
+    const { data: { user } } = await supabase.auth.exchangeCodeForSession(code)
+
+    // New user or user without a nickname — send to settings first
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles').select('nickname').eq('id', user.id).maybeSingle()
+      if (!profile?.nickname?.trim()) {
+        return NextResponse.redirect(new URL('/settings?setup=1', url.origin))
+      }
+    }
   }
 
   // Password recovery — send to set-password page

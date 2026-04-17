@@ -19,8 +19,9 @@ function parseChangelog(md: string): ChangelogEntry[] {
   return entries
 }
 
-export default function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ setup?: string }> }) {
+  const { setup } = await searchParams
   const md = fs.readFileSync(path.join(process.cwd(), 'CHANGELOG.md'), 'utf-8')
   const changelog = parseChangelog(md)
-  return <SettingsClient changelog={changelog} version={packageJson.version} />
+  return <SettingsClient changelog={changelog} version={packageJson.version} setup={setup === '1'} />
 }

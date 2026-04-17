@@ -36,6 +36,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // Authenticated users without a nickname must set one before accessing the app
+  if (user && !path.startsWith('/settings') && !isPublic) {
+    const { data: profile } = await supabase
+      .from('profiles').select('nickname').eq('id', user.id).maybeSingle()
+    if (!profile?.nickname?.trim()) {
+      return NextResponse.redirect(new URL('/settings?setup=1', request.url))
+    }
+  }
+
   return response
 }
 

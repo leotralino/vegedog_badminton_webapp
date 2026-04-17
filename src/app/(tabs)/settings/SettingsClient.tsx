@@ -10,7 +10,7 @@ export type ChangelogEntry = { version: string; date: string; notes: string[] }
 type Tab = '账户' | '统计' | '关注' | '关于'
 
 // ── Account tab ────────────────────────────────────────────────────────────
-function AccountTab({ onSignOut }: { onSignOut: () => void }) {
+function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boolean }) {
   const supabase = createClient()
   const router   = useRouter()
   const [loading,       setLoading]       = useState(true)
@@ -21,7 +21,7 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
   const [avatarUrl,     setAvatarUrl]     = useState('')
   const [email,         setEmail]         = useState('')
 
-  const [editingNickname, setEditingNickname] = useState(false)
+  const [editingNickname, setEditingNickname] = useState(!!setup)
   const [editingVenmo,    setEditingVenmo]    = useState(false)
   const [draftNickname,   setDraftNickname]   = useState('')
   const [draftVenmo,      setDraftVenmo]      = useState('')
@@ -70,8 +70,12 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
         updated_at:     new Date().toISOString(),
       })
       if (dbErr) throw dbErr
-      if (field === 'nickname') { setNickname(newNickname); setEditingNickname(false) }
-      else                      { setVenmoUsername(newVenmo); setEditingVenmo(false) }
+      if (field === 'nickname') {
+        setNickname(newNickname); setEditingNickname(false)
+        if (setup) router.push('/sessions')
+      } else {
+        setVenmoUsername(newVenmo); setEditingVenmo(false)
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '出现错误，请重试')
     } finally {
@@ -83,6 +87,11 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <div className="space-y-4">
+      {setup && (
+        <div className="rounded-xl bg-brand-50 border border-brand-200 px-4 py-3 text-sm text-brand-800 font-medium">
+          欢迎！请先设置你的昵称，然后就可以参与接龙了。
+        </div>
+      )}
       {avatarUrl && (
         <div className="flex justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -103,7 +112,7 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
         {/* Nickname */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700">昵称</label>
+            <label className="text-sm font-medium text-gray-700">昵称<span className="ml-1 font-normal text-red-400">（必填）</span></label>
             {!editingNickname && (
               <button
                 onClick={() => { setDraftNickname(nickname); setEditingNickname(true); setError('') }}
@@ -502,9 +511,11 @@ function AboutTab({ changelog, version }: { changelog: ChangelogEntry[]; version
 export default function SettingsClient({
   changelog,
   version,
+  setup,
 }: {
   changelog: ChangelogEntry[]
   version: string
+  setup?: boolean
 }) {
   const supabase = createClient()
   const router   = useRouter()
@@ -536,7 +547,7 @@ export default function SettingsClient({
         ))}
       </div>
 
-      {tab === '账户' && <AccountTab onSignOut={signOut} />}
+      {tab === '账户' && <AccountTab onSignOut={signOut} setup={setup} />}
       {tab === '统计' && <StatsTab />}
       {tab === '关注' && <FollowTab />}
       {tab === '关于' && <AboutTab changelog={changelog} version={version} />}
