@@ -542,6 +542,77 @@ function FollowTab() {
   )
 }
 
+// ── PWA install button ─────────────────────────────────────────────────────
+function PwaInstallButton() {
+  const [standalone, setStandalone] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [isIos, setIsIos] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      ('standalone' in window.navigator && (window.navigator as any).standalone === true)
+    setStandalone(isStandalone)
+    setIsIos(/iphone|ipad|ipod/i.test(navigator.userAgent))
+
+    const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  if (standalone) return null
+
+  async function handleInstall() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt()
+      await deferredPrompt.userChoice
+      setDeferredPrompt(null)
+    } else {
+      setShowGuide(true)
+    }
+  }
+
+  return (
+    <>
+      <button onClick={handleInstall}
+        className="flex items-center gap-1 text-xs text-gray-400 font-medium px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        安装
+      </button>
+
+      {showGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowGuide(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3">
+            <h3 className="text-base font-bold text-gray-900">添加到主屏幕</h3>
+            <div className="text-sm text-gray-500 space-y-2">
+              {isIos ? (
+                <>
+                  <p>1. 点击 Safari 底部 <span className="font-medium text-gray-700">分享</span> 按钮（□↑）</p>
+                  <p>2. 向下滑动，选择 <span className="font-medium text-gray-700">添加到主屏幕</span></p>
+                  <p>3. 点击右上角 <span className="font-medium text-gray-700">添加</span></p>
+                </>
+              ) : (
+                <p>请使用浏览器菜单中的"安装应用"或"添加到主屏幕"选项。</p>
+              )}
+            </div>
+            <button onClick={() => setShowGuide(false)}
+              className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold active:bg-gray-200 transition-colors">
+              知道了
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── About tab ──────────────────────────────────────────────────────────────
 function AboutTab({ changelog, version }: { changelog: ChangelogEntry[]; version: string }) {
   return (
@@ -602,7 +673,10 @@ export default function SettingsClient({
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-      <h1 className="text-xl font-bold text-gray-900">设置</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900">设置</h1>
+        <PwaInstallButton />
+      </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/dog_coding.png" alt="" aria-hidden="true"
         className="fixed bottom-16 left-1/2 -translate-x-1/2 w-80 h-80 object-contain pointer-events-none opacity-30 z-0" />
