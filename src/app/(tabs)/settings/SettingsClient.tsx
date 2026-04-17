@@ -120,13 +120,13 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
               <input className="input" placeholder="别人看到的名字"
                 value={draftNickname} onChange={e => setDraftNickname(e.target.value)} autoFocus />
               <div className="flex gap-2">
-                <button onClick={() => saveField('nickname')} disabled={saving}
-                  className="btn-primary py-1.5 text-sm flex-1">
-                  {saving ? '保存中…' : '保存'}
-                </button>
                 <button onClick={() => { setEditingNickname(false); setError('') }}
                   className="flex-1 py-1.5 text-sm rounded-xl border border-gray-200 text-gray-600 font-medium">
                   取消
+                </button>
+                <button onClick={() => saveField('nickname')} disabled={saving}
+                  className="btn-primary py-1.5 text-sm flex-1">
+                  {saving ? '保存中…' : '保存'}
                 </button>
               </div>
             </>
@@ -160,13 +160,13 @@ function AccountTab({ onSignOut }: { onSignOut: () => void }) {
               </div>
               <p className="text-xs text-gray-400">其他人在场次中可以看到你的付款按钮</p>
               <div className="flex gap-2">
-                <button onClick={() => saveField('venmo')} disabled={saving}
-                  className="btn-primary py-1.5 text-sm flex-1">
-                  {saving ? '保存中…' : '保存'}
-                </button>
                 <button onClick={() => { setEditingVenmo(false); setError('') }}
                   className="flex-1 py-1.5 text-sm rounded-xl border border-gray-200 text-gray-600 font-medium">
                   取消
+                </button>
+                <button onClick={() => saveField('venmo')} disabled={saving}
+                  className="btn-primary py-1.5 text-sm flex-1">
+                  {saving ? '保存中…' : '保存'}
                 </button>
               </div>
             </>
