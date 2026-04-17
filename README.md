@@ -1,4 +1,4 @@
-# 🏸 菜狗羽球 (VegDog Badminton)
+# 🏸 菜狗羽球 (VegeDog Badminton)
 
 <p align="center">
   <img src="docs/dog_main.png" alt="VegDog Logo" width="240" />
@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/Deployment-Vercel-000000?style=flat&logo=vercel" alt="Vercel">
 </p>
 
-**菜狗（VegDog）** 是一个基于 **Next.js + Supabase** 构建的全栈 Web 应用，旨在为菜狗羽毛球群提供简洁、高效的约球管理方案。
+**菜狗（VegeDog）** 是一个基于 **Next.js + Supabase** 构建的全栈 Web 应用，旨在为菜狗羽毛球群提供简洁、高效的约球管理方案。
 
 本项目通过自动化流程取代传统的社交软件群接龙，解决了报名统计混乱、并发冲突、晚退判定困难以及收款对账繁琐等核心痛点。
 
@@ -73,7 +73,7 @@
 
 ---
 
-## 🚀 快速开始
+## 🚀 本地开发测试
 
 ### 1. 安装依赖
 
@@ -106,15 +106,12 @@ NEXT_PUBLIC_SITE_URL=https://your-app.vercel.app
 
 ### 3. 初始化数据库
 
-在 Supabase SQL 编辑器中依次运行：
+在 Supabase SQL 编辑器中运行：
 
-1. `supabase/schema.sql` — 建表、RLS 策略、触发器
-2. `supabase/patches.sql` — 功能补丁与修复（含多管理员、关注系统等）
+1. `supabase/schema.sql` — 建表、RLS 策略、触发器（一个文件包含全部内容）
 
 ### 4. 启动开发服务器
 
 ```bash
 npm run dev
 ```
-
-访问 [http://localhost:3000](http://localhost:3000)
