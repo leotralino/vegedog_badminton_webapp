@@ -73,45 +73,6 @@
 
 ---
 
-## 🚀 本地开发测试
+## 🚀 开发与测试
 
-### 1. 安装依赖
-
-```bash
-git clone https://github.com/leotralino/vegedog_badminton_webapp.git
-cd vegedog_badminton_webapp
-npm install
-```
-
-### 2. 配置环境变量
-
-```bash
-cp .env.local.example .env.local
-```
-
-在 `.env.local` 中填入所需配置：
-
-```
-# Supabase（必填）
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# 邮件功能（发给球馆 + 关注通知）
-GMAIL_USER=you@gmail.com
-GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
-COURT_EMAIL=court@example.com
-NEXT_PUBLIC_SITE_URL=https://your-app.vercel.app
-```
-
-### 3. 初始化数据库
-
-在 Supabase SQL 编辑器中运行：
-
-1. `supabase/schema.sql` — 建表、RLS 策略、触发器（一个文件包含全部内容）
-
-### 4. 启动开发服务器
-
-```bash
-npm run dev
-```
+See [docs/development.md](docs/development.md) for the full setup guide — Supabase, Google OAuth, environment variables, branching strategy, and E2E tests.
