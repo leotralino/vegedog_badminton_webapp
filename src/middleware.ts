@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Authenticated users without a nickname must set one before accessing the app
-  if (user && !path.startsWith('/settings') && !isPublic) {
+  if (user && !path.startsWith('/settings') && !path.startsWith('/api/') && !isPublic) {
     const { data: profile } = await supabase
       .from('profiles').select('nickname').eq('id', user.id).maybeSingle()
     if (!profile?.nickname?.trim()) {

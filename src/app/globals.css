@@ -4,12 +4,17 @@
 
 @layer base {
   html { -webkit-tap-highlight-color: transparent; }
-  body { @apply bg-gray-50 text-gray-900 antialiased; }
+  body {
+    background: hsl(35, 30%, 96%);
+    @apply text-gray-900 antialiased;
+  }
 }
 
 @layer components {
   .card {
-    @apply relative bg-white rounded-2xl shadow-sm border border-gray-100 p-4;
+    @apply relative rounded-2xl shadow-sm p-4;
+    background: hsl(35, 40%, 98%);
+    border: 1px solid hsl(35, 20%, 85%);
   }
   .btn-primary {
     @apply w-full py-3 rounded-xl bg-brand-600 text-white font-semibold
@@ -20,9 +25,10 @@
            active:bg-gray-50 disabled:opacity-50 transition-colors;
   }
   .input {
-    @apply w-full px-4 py-3 rounded-xl border border-gray-200 bg-white
-           focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
-           placeholder:text-gray-400 text-sm;
+    @apply w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2
+           focus:ring-brand-500 focus:border-transparent placeholder:text-gray-400 text-sm;
+    background: hsl(35, 40%, 98%);
+    border: 1px solid hsl(35, 20%, 85%);
   }
   .badge {
     @apply text-xs font-bold px-2 py-0.5 rounded-full;

@@ -66,13 +66,15 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: dbErr } = await (supabase.from('profiles') as any).upsert({
+      const upsertData: Record<string, unknown> = {
         id:             user.id,
         nickname:       newNickname,
         venmo_username: newVenmo || null,
-        avatar_url:     user.user_metadata?.avatar_url || null,
         updated_at:     new Date().toISOString(),
-      })
+      }
+      if (user.user_metadata?.avatar_url) upsertData.avatar_url = user.user_metadata.avatar_url
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: dbErr } = await (supabase.from('profiles') as any).upsert(upsertData)
       if (dbErr) throw dbErr
       if (field === 'nickname') {
         setNickname(newNickname); setEditingNickname(false)
@@ -120,9 +122,9 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
         </div>
       )}
 
-      <div className="card space-y-4">
+      <div className="card space-y-3">
         {/* Email + set password */}
-        <div className="space-y-2">
+        <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700">邮箱</label>
             {!editingPassword && (
@@ -157,7 +159,7 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
         <hr className="border-gray-100" />
 
         {/* Nickname */}
-        <div className="space-y-2">
+        <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700">接龙昵称<span className="ml-1 font-normal text-red-400">（必填）</span></label>
             {!editingNickname && (
@@ -194,7 +196,7 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
         <hr className="border-gray-100" />
 
         {/* Venmo */}
-        <div className="space-y-2">
+        <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700">
               Venmo 账号<span className="ml-1 font-normal text-gray-400">（选填）</span>
@@ -341,9 +343,10 @@ function StatsTab() {
   const items = [
     { label: '参与接龙次数', value: stats.joined,     emoji: '🏸' },
     { label: '帮助+1人数',   value: stats.plusOne,    emoji: '👥' },
-    { label: '候补次数',     value: stats.waitlisted, emoji: '⏳' },
-    { label: '发起接龙次数', value: stats.initiated,  emoji: '📋' },
     { label: '加时次数',     value: stats.stayedLate, emoji: '⏰' },
+    { label: '发起接龙次数', value: stats.initiated,  emoji: '📋' },
+    { label: '候补次数',     value: stats.waitlisted, emoji: '⏳' },
+    { label: '菜狗杯参与',   value: '—',              emoji: '🏆' },
   ]
 
   const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
@@ -351,12 +354,12 @@ function StatsTab() {
   return (
     <div className="space-y-3">
       <div className="card">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {items.map(({ label, value, emoji }, i) => (
             <div key={label}
-              className={`bg-gray-50 rounded-xl p-3 text-center${i === items.length - 1 && items.length % 2 !== 0 ? ' col-span-2' : ''}`}>
-              <p className="text-lg mb-0.5">{emoji}</p>
-              <p className="text-2xl font-bold text-gray-900">{value}</p>
+              className="bg-gray-50 rounded-xl px-2 py-2 text-center">
+              <p className="text-base leading-none mb-0.5">{emoji}</p>
+              <p className="text-xl font-bold text-gray-900 leading-tight">{value}</p>
               <p className="text-[11px] text-gray-500 mt-0.5">{label}</p>
             </div>
           ))}
