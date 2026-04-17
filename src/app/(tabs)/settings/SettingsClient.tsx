@@ -23,8 +23,12 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
 
   const [editingNickname, setEditingNickname] = useState(!!setup)
   const [editingVenmo,    setEditingVenmo]    = useState(false)
+  const [editingPassword, setEditingPassword] = useState(false)
+  const [confirmSignOut,  setConfirmSignOut]  = useState(false)
   const [draftNickname,   setDraftNickname]   = useState('')
   const [draftVenmo,      setDraftVenmo]      = useState('')
+  const [draftPassword,   setDraftPassword]   = useState('')
+  const [draftPassword2,  setDraftPassword2]  = useState('')
 
   useEffect(() => {
     async function load() {
@@ -52,7 +56,7 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
     setError('')
     const newNickname = field === 'nickname' ? draftNickname.trim() : nickname
     const newVenmo    = field === 'venmo'    ? draftVenmo.trim()    : venmoUsername
-    if (!newNickname) { setError('昵称不能为空'); return }
+    if (!newNickname) { setError('接龙昵称不能为空'); return }
     if (field === 'nickname' && !NICKNAME_RE.test(newNickname)) {
       setError('为了方便接龙与查账，请不要使用特殊字符或emoji。谢谢！')
       return
@@ -83,6 +87,22 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
     }
   }
 
+  async function savePassword() {
+    setError('')
+    if (draftPassword.length < 6) { setError('密码至少需要6位'); return }
+    if (draftPassword !== draftPassword2) { setError('两次密码不一致'); return }
+    setSaving(true)
+    try {
+      const { error: authErr } = await supabase.auth.updateUser({ password: draftPassword })
+      if (authErr) throw authErr
+      setEditingPassword(false); setDraftPassword(''); setDraftPassword2('')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '出现错误，请重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) return <div className="card animate-pulse h-48" />
 
   return (
@@ -101,10 +121,37 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
       )}
 
       <div className="card space-y-4">
-        {/* Email — read-only */}
-        <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 block">邮箱</label>
-          <p className="text-sm text-gray-500 py-2">{email}</p>
+        {/* Email + set password */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">邮箱</label>
+            {!editingPassword && (
+              <button
+                onClick={() => { setEditingPassword(true); setError('') }}
+                className="text-xs text-brand-600 font-medium px-2 py-1 rounded hover:bg-brand-50 transition-colors">
+                设置密码（可选）
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">{email}</p>
+          {editingPassword && (
+            <>
+              <input className="input" type="password" placeholder="新密码（至少6位）"
+                value={draftPassword} onChange={e => setDraftPassword(e.target.value)} autoFocus />
+              <input className="input" type="password" placeholder="确认新密码"
+                value={draftPassword2} onChange={e => setDraftPassword2(e.target.value)} />
+              <div className="flex gap-2">
+                <button onClick={() => { setEditingPassword(false); setDraftPassword(''); setDraftPassword2(''); setError('') }}
+                  className="flex-1 py-1.5 text-sm rounded-xl border border-gray-200 text-gray-600 font-medium">
+                  取消
+                </button>
+                <button onClick={savePassword} disabled={saving}
+                  className="btn-primary py-1.5 text-sm flex-1">
+                  {saving ? '保存中…' : '保存'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <hr className="border-gray-100" />
@@ -112,7 +159,7 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
         {/* Nickname */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700">昵称<span className="ml-1 font-normal text-red-400">（必填）</span></label>
+            <label className="text-sm font-medium text-gray-700">接龙昵称<span className="ml-1 font-normal text-red-400">（必填）</span></label>
             {!editingNickname && (
               <button
                 onClick={() => { setDraftNickname(nickname); setEditingNickname(true); setError('') }}
@@ -190,11 +237,33 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
       </div>
 
       <div className="card">
-        <button onClick={() => { if (window.confirm('你确定要退出登录吗？')) onSignOut() }}
+        <button onClick={() => setConfirmSignOut(true)}
           className="w-full text-sm text-red-500 font-medium py-1 hover:text-red-700 transition-colors">
           退出登录
         </button>
       </div>
+
+      {confirmSignOut && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmSignOut(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3">
+            <h3 className="text-base font-bold text-gray-900">退出登录</h3>
+            <p className="text-sm text-gray-500 leading-relaxed">你确定要退出登录吗？</p>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setConfirmSignOut(false)}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold
+                           active:bg-gray-200 transition-colors">
+                取消
+              </button>
+              <button onClick={onSignOut}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold
+                           active:opacity-80 transition-colors">
+                退出
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
