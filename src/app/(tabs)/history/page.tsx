@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import SessionCard from '@/components/SessionCard'
+import HistoryClient from './HistoryClient'
 import type { SessionWithInitiator } from '@/lib/types'
 
 export const revalidate = 0
@@ -42,18 +42,7 @@ export default async function HistoryPage() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/dog_only.png" alt="" aria-hidden="true"
         className="fixed bottom-16 right-2 w-80 h-80 object-contain pointer-events-none opacity-30 z-0" />
-      {sessions.length === 0 ? (
-        <div className="card text-center py-12 text-gray-400">
-          <p className="text-3xl mb-2">📋</p>
-          <p className="text-sm">暂无历史场次</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sessions.map(s => (
-            <SessionCard key={s.id} session={s} joinedCount={joinedBySession[s.id] ?? 0} />
-          ))}
-        </div>
-      )}
+      <HistoryClient sessions={sessions} joinedBySession={joinedBySession} />
     </main>
   )
 }
