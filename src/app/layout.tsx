@@ -11,6 +11,11 @@ export const metadata: Metadata = {
     apple: '/icon-180.png',
     icon: '/icon-192.png',
   },
+  appleWebApp: {
+    capable: true,
+    title: '菜狗',
+    statusBarStyle: 'default',
+  },
   openGraph: {
     title: '菜狗 Badminton',
     description: 'Badminton session sign-up and queue management',
