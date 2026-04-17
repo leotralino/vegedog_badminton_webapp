@@ -151,9 +151,9 @@ export default function LoginPage() {
                      bg-gradient-to-br from-brand-50 to-white">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
-          <div className="text-6xl">🏸</div>
-          <h1 className="text-3xl font-bold text-gray-900">菜狗</h1>
-          <p className="text-gray-500 text-sm">羽毛球接龙</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/dog_main.png" alt="菜狗" className="w-64 h-64 object-contain mx-auto" />
+          <p className="text-2xl font-semibold text-gray-700">羽毛球接龙</p>
         </div>
 
         <div className="card">
@@ -162,10 +162,6 @@ export default function LoginPage() {
           </Suspense>
         </div>
 
-        <p className="text-center text-xs text-gray-400">
-          登录后可参加或创建场次。<br />
-          未登录也可浏览场次列表。
-        </p>
       </div>
     </main>
   )
