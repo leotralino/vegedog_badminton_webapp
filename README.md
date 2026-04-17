@@ -1,7 +1,7 @@
 # 🏸 菜狗羽球 (VegDog Badminton)
 
 <p align="center">
-  <img src="docs/vegdog_logo.svg" alt="VegDog Logo" width="160" />
+  <img src="docs/dog_main.png" alt="VegDog Logo" width="240" />
 </p>
 
 <p align="center">
@@ -31,21 +31,6 @@
   &nbsp;&nbsp;&nbsp;
   <img src="docs/screen_3.png" width="30%" alt="付款详情" />
 </p>
-
----
-
-## 📖 Architecture Docs
-
-New to web apps or want to understand how this project is put together?
-
-**[docs/architecture.md](docs/architecture.md)** covers:
-- How the browser, Next.js server, and Supabase database fit together
-- Every database table and its columns
-- How login and auth tokens work
-- Row-Level Security — who can read/write which rows
-- Key flows: join, withdraw, lock, pay, move to history
-- How realtime live updates work
-- How concurrency (advisory locks) prevents double-booking
 
 ---
 
