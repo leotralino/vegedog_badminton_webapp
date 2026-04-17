@@ -1053,7 +1053,7 @@ function PaymentSection({
           <div className="absolute inset-0 bg-black/40" onClick={() => setVenmoPending(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3">
             <h3 className="text-lg font-bold text-gray-900 flex items-center justify-center gap-1">⚠️ 注意事项</h3>
-            <div className="text-sm text-gray-600 leading-relaxed space-y-2">
+            <div className="text-sm text-gray-600 leading-relaxed space-y-2 text-center">
               <p>转账后请务必先在 Venmo 里<strong className="text-red-600">确认付款成功</strong>，然后<strong className="text-gray-900">手动在接龙里更新付款状态</strong>！</p>
               <p>如果有 +1，请<strong className="text-gray-900">全部付清并更新全部付款状态</strong>，方便对账。</p>
               <p>付款前请提前和 +1 方确认有没有<strong className="text-gray-900">晚场加时</strong>。</p>

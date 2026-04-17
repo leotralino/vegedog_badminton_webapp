@@ -61,7 +61,6 @@ create table public.payment_records (
   id             uuid primary key default gen_random_uuid(),
   session_id     uuid not null references public.sessions(id) on delete cascade,
   participant_id uuid not null references public.participants(id) on delete cascade,
-
   status         text not null default 'unpaid'
                    check (status in ('unpaid', 'paid', 'waived')),
   note           text,
