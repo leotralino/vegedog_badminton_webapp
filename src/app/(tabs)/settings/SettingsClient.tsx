@@ -520,6 +520,9 @@ export default function SettingsClient({
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       <h1 className="text-xl font-bold text-gray-900">设置</h1>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/dog_coding.png" alt="" aria-hidden="true"
+        className="fixed bottom-16 left-1/2 -translate-x-1/2 w-80 h-80 object-contain pointer-events-none opacity-30 z-0" />
 
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
         {tabs.map(t => (

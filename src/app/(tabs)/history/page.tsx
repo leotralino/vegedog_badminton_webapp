@@ -39,6 +39,9 @@ export default async function HistoryPage() {
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       <h1 className="text-xl font-bold text-gray-900">历史</h1>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/dog_only.png" alt="" aria-hidden="true"
+        className="fixed bottom-16 right-2 w-80 h-80 object-contain pointer-events-none opacity-30 z-0" />
       {sessions.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
           <p className="text-3xl mb-2">📋</p>

@@ -48,8 +48,8 @@ export default async function SessionsPage() {
         </a>
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/dog_only.png" alt="" aria-hidden="true"
-        className="fixed bottom-20 right-2 w-48 h-48 object-contain pointer-events-none opacity-30 z-10" />
+      <img src="/dog_chase.png" alt="" aria-hidden="true"
+        className="fixed bottom-20 right-2 w-80 h-80 object-contain pointer-events-none opacity-30 z-0" />
 
       {sessions.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
