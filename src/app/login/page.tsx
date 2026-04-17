@@ -12,7 +12,7 @@ function LoginForm() {
 
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
-  const [mode,     setMode]     = useState<'password' | 'magic'>('password')
+  const [mode,     setMode]     = useState<'password' | 'magic'>('magic')
   const [sent,     setSent]     = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
@@ -90,16 +90,16 @@ function LoginForm() {
       {/* Mode toggle */}
       <div className="flex rounded-xl overflow-hidden border border-gray-200 text-sm font-semibold">
         <button
-          onClick={() => setMode('password')}
-          className={`flex-1 py-2 transition-colors ${mode === 'password' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}
-        >
-          密码登录
-        </button>
-        <button
           onClick={() => setMode('magic')}
           className={`flex-1 py-2 transition-colors ${mode === 'magic' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}
         >
           邮件链接
+        </button>
+        <button
+          onClick={() => setMode('password')}
+          className={`flex-1 py-2 transition-colors ${mode === 'password' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}
+        >
+          密码登录
         </button>
       </div>
 

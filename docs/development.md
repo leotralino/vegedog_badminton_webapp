@@ -56,7 +56,7 @@ In Supabase: **Authentication → URL Configuration**
 | Field | Value | Why |
 |-------|-------|-----|
 | Site URL | `https://your-app.vercel.app` | Where users land after magic link / OAuth login |
-| Redirect URLs | `https://your-app.vercel.app/**` | Allows any path on your app as a valid redirect target |
+| Redirect URLs | `https://your-app.vercel.app/**` and `http://localhost:3000/**` | Allows any path on your app as a valid redirect target |
 
 > If this is wrong, login will redirect users to the wrong host after sign-in.
 
