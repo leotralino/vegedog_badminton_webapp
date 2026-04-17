@@ -96,8 +96,7 @@ export interface PaymentRecord {
   id:             string
   session_id:     string
   participant_id: string
-  base_fee:       number
-  late_fee:       number
+
   status:         PaymentStatus
   note:           string | null
   updated_at:     string

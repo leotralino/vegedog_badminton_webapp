@@ -61,8 +61,7 @@ create table public.payment_records (
   id             uuid primary key default gen_random_uuid(),
   session_id     uuid not null references public.sessions(id) on delete cascade,
   participant_id uuid not null references public.participants(id) on delete cascade,
-  base_fee       numeric(10,2) not null default 0,
-  late_fee       numeric(10,2) not null default 0,
+
   status         text not null default 'unpaid'
                    check (status in ('unpaid', 'paid', 'waived')),
   note           text,
@@ -209,8 +208,8 @@ create or replace function public.initialize_payment_records()
 returns trigger language plpgsql security definer as $$
 begin
   if new.status = 'locked' and old.status != 'locked' then
-    insert into public.payment_records (session_id, participant_id, base_fee, late_fee, status)
-    select new.id, p.id, 0, 0, 'unpaid'
+    insert into public.payment_records (session_id, participant_id, status)
+    select new.id, p.id, 'unpaid'
       from public.participants p
      where p.session_id = new.id
        and p.status = 'joined'

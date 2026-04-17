@@ -353,13 +353,13 @@ export default function SessionDetailClient({
       const tempId = `temp-${Date.now()}`
       setPayRecords(prev => [...prev, {
         id: tempId, session_id: session.id, participant_id: participantId,
-        base_fee: 0, late_fee: 0, status: 'paid', note: null,
+        status: 'paid', note: null,
         updated_at: new Date().toISOString(),
       }])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from('payment_records') as any)
         .insert({ session_id: session.id, participant_id: participantId,
-                  base_fee: 0, late_fee: 0, status: 'paid' })
+                  status: 'paid' })
       if (error) {
         showToast(error instanceof Error ? error.message : '出现错误', false)
         setPayRecords(prev => prev.filter(r => r.id !== tempId))
