@@ -17,3 +17,4 @@ tsconfig.tsbuildinfo
 *.pem
 npm-debug.log*
 playwright/.auth/
+test-results/
