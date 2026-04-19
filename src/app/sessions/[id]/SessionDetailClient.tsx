@@ -244,8 +244,7 @@ export default function SessionDetailClient({
 
   function handlePreviewCourtEmail() {
     const names = joined.map((p, i) => {
-      const nick = p.profile?.nickname
-      const name = nick && nick !== p.display_name ? `${p.display_name} (${nick})` : p.display_name
+      const name = p.display_name
       return `${i + 1}. ${name}`
     })
     const nameList = names.join('\n')
