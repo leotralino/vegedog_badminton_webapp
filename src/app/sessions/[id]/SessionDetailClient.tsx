@@ -647,7 +647,9 @@ export default function SessionDetailClient({
 
         {/* Admin controls */}
         {isAdmin && session.status === 'open' && !isEditing && (
-          <button onClick={handleLock} disabled={locking}
+          <button
+            onClick={() => showConfirm('锁定接龙', `锁定之后接龙人员名单将无法改变！\n\n当前已报名 ${joined.length} 人，候补 ${waitlist.length} 人。确定锁定？`, handleLock, true)}
+            disabled={locking}
             className="w-full mt-2 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold
                        active:bg-blue-700 disabled:opacity-50 transition-colors">
             {locking ? '锁定中…' : '🔒 锁定接龙'}
