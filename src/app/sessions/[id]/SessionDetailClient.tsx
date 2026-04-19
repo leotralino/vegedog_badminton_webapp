@@ -253,8 +253,10 @@ export default function SessionDetailClient({
     showToast('已退出')
     await refreshParticipants()
 
-    // Notify the promoted waitlisted user if there was one
-    if (firstWaitlisted) {
+    // Notify promoted user only if withdrawal is past the deadline (late_withdraw)
+    // — before the deadline, promotions are routine; after, the person may not be watching
+    const isPastDeadline = new Date() > new Date(session.withdraw_deadline)
+    if (firstWaitlisted && isPastDeadline) {
       fetch('/api/notify-promoted', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
