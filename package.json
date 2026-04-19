@@ -1,6 +1,6 @@
 {
   "name": "vegdog-badminton",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,9 @@
     "lint": "next lint",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "seed:users": "npx tsx tests/seed-users.ts"
+    "seed:users": "npx tsx tests/seed-users.ts",
+    "load:setup": "npx tsx tests/load/setup.ts",
+    "load:run": "k6 run tests/load/join-stress.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

@@ -546,8 +546,8 @@ export default function SessionDetailClient({
           </div>
         )}
 
-        {/* Admin management — visible to all admins */}
-        {isAdmin && session.status !== 'closed' && (
+        {/* Admin management — visible to all logged-in users */}
+        {currentUser && session.status !== 'closed' && admins.length > 0 && (
           <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">管理员</p>
             <div className="space-y-1.5">
@@ -562,8 +562,8 @@ export default function SessionDetailClient({
                       <span className="ml-1.5 text-xs text-gray-400">（发起人）</span>
                     )}
                   </span>
-                  {/* Cannot remove the initiator */}
-                  {a.user_id !== session.initiator_id && (
+                  {/* Cannot remove the initiator; only admins see the remove button */}
+                  {isAdmin && a.user_id !== session.initiator_id && (
                     <button onClick={() => handleRemoveAdmin(a.user_id)}
                       className="text-xs text-red-400 hover:text-red-600 px-1.5 py-0.5 rounded transition-colors">
                       移除
@@ -573,8 +573,8 @@ export default function SessionDetailClient({
               ))}
             </div>
 
-            {/* Add admin */}
-            {!adminSearchOpen ? (
+            {/* Add admin — admin only */}
+            {isAdmin && (!adminSearchOpen ? (
               <button onClick={() => setAdminSearchOpen(true)}
                 className="text-xs text-brand-600 font-semibold">
                 + 添加管理员
@@ -604,7 +604,7 @@ export default function SessionDetailClient({
                   </div>
                 )}
               </div>
-            )}
+            ))}
           </div>
         )}
 
@@ -736,7 +736,7 @@ export default function SessionDetailClient({
         participants.some(p => p.stayed_late) && (
         <div className="card space-y-2">
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
-            <span className="text-orange-500">⏰</span> +时名单
+            <span className="text-orange-500">⏰</span> +时名单（共{participants.filter(p => p.stayed_late).length}人）
           </h2>
           {participants.filter(p => p.stayed_late).map(p => (
             <div key={p.id} className="flex items-center gap-3 py-1">
@@ -890,13 +890,15 @@ function ParticipantRow({
 
       {/* Actions */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* Stayed late toggle — joined rows only, admin, locked session */}
-        {isAdmin && allowActions && (
-          <button onClick={onToggleLate}
+        {/* Stayed late — admin can toggle; own row shows read-only status */}
+        {allowActions && (isAdmin || isOwn) && (
+          <button
+            onClick={isAdmin ? onToggleLate : undefined}
             className={`text-xs px-2 py-1 rounded-lg font-medium
+              ${isAdmin ? 'cursor-pointer' : 'cursor-default'}
               ${p.stayed_late
-                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
+                ? 'bg-orange-100 text-orange-700' + (isAdmin ? ' hover:bg-orange-200' : '')
+                : 'bg-gray-100 text-gray-400'      + (isAdmin ? ' hover:bg-gray-200'  : '')}`}>
             +时
           </button>
         )}

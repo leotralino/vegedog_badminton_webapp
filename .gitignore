@@ -18,3 +18,4 @@ tsconfig.tsbuildinfo
 npm-debug.log*
 playwright/.auth/
 test-results/
+tests/load/fixtures.json
