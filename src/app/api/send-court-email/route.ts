@@ -49,13 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Missing env vars: ${missing}` }, { status: 500 })
   }
 
-  const names = participants.map((p, i) => {
-    const nickname = (p.profile as any)?.nickname
-    const name = nickname && nickname !== p.display_name
-      ? `${p.display_name} (${nickname})`
-      : p.display_name
-    return `${i + 1}. ${name}`
-  })
+  const names = participants.map((p, i) => `${i + 1}. ${p.display_name}`)
 
   const subject = `预约名单 — ${session.title}`
   const body = `您好，\n\n这是我们这次菜狗群正式成员名单：\n\n${names.join('\n')}\n\n谢谢！\n-菜狗群AI管理员`

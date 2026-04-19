@@ -93,6 +93,17 @@ export default function SessionDetailClient({
   const [joinName,  setJoinName]  = useState('')
   const [joining,   setJoining]   = useState(false)
   const [locking,   setLocking]   = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editFields, setEditFields] = useState({
+    title:             session.title,
+    location:          session.location,
+    starts_at:         session.starts_at.slice(0, 16),
+    withdraw_deadline: session.withdraw_deadline.slice(0, 16),
+    court_count:       session.court_count,
+    max_participants:  session.max_participants,
+    notes:             session.notes ?? '',
+  })
+  const [saving, setSaving] = useState(false)
   const [toast,     setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
   const [confirm,   setConfirm]   = useState<{
     title: string; message: string; onConfirm: () => void; danger?: boolean
@@ -157,6 +168,28 @@ export default function SessionDetailClient({
     setTimeout(() => setToast(null), 3000)
   }
 
+  // ── Save session edits ───────────────────────────────────────────────
+  async function handleSaveEdit() {
+    setSaving(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('sessions') as any)
+      .update({
+        title:             editFields.title.trim(),
+        location:          editFields.location.trim(),
+        starts_at:         new Date(editFields.starts_at).toISOString(),
+        withdraw_deadline: new Date(editFields.withdraw_deadline).toISOString(),
+        court_count:       Number(editFields.court_count),
+        max_participants:  Number(editFields.max_participants),
+        notes:             editFields.notes.trim() || null,
+      })
+      .eq('id', session.id)
+    setSaving(false)
+    if (error) { showToast(error.message, false); return }
+    showToast('已保存 ✓', true)
+    setIsEditing(false)
+    router.refresh()
+  }
+
   // ── Join ──────────────────────────────────────────────────────────────
   async function handleJoin() {
     if (!currentUser) { router.push(`/login?next=/sessions/${session.id}`); return }
@@ -193,6 +226,11 @@ export default function SessionDetailClient({
   async function handleWithdraw(participantId: string) {
     if (!currentUser) return
 
+    // Capture the first waitlisted user before withdrawal (may be promoted)
+    const firstWaitlisted = participants
+      .filter(p => p.status === 'waitlist')
+      .sort((a, b) => a.queue_position - b.queue_position)[0] ?? null
+
     // Optimistic update — hide entry immediately
     setParticipants(prev => prev.map(p =>
       p.id === participantId ? { ...p, status: 'withdrawn' as const, withdrew_at: new Date().toISOString() } : p
@@ -202,8 +240,19 @@ export default function SessionDetailClient({
     const { error } = await (supabase.rpc as any)('withdraw_participant', {
       p_participant_id: participantId, p_user_id: currentUser.id,
     })
-    if (error) { showToast(error.message, false); refreshParticipants() }
-    else { showToast('已退出'); refreshParticipants() }
+    if (error) { showToast(error.message, false); refreshParticipants(); return }
+
+    showToast('已退出')
+    await refreshParticipants()
+
+    // Notify the promoted waitlisted user if there was one
+    if (firstWaitlisted) {
+      fetch('/api/notify-promoted', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id, promotedUserId: firstWaitlisted.user_id }),
+      }).catch(() => {})
+    }
   }
 
   // ── Lock session ──────────────────────────────────────────────────────
@@ -487,43 +536,107 @@ export default function SessionDetailClient({
       {/* Meta card */}
       <div className="card space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">{session.title}</h1>
+          <h1 className="text-xl font-bold text-gray-900 leading-tight">
+            {isEditing ? (
+              <input className="input text-base font-bold" value={editFields.title}
+                onChange={e => setEditFields(f => ({ ...f, title: e.target.value }))} />
+            ) : session.title}
+          </h1>
           <div className="flex items-center gap-1.5 shrink-0">
             <span className={`badge ${STATUS_CLASS[session.status]}`}>
               {STATUS_LABEL[session.status]}
             </span>
-            <ShareButton sessionId={session.id} title={session.title} />
+            {!isEditing && <ShareButton sessionId={session.id} title={session.title} />}
+            {isAdmin && session.status === 'open' && !isEditing && (
+              <button onClick={() => setIsEditing(true)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400
+                           hover:text-gray-600 hover:bg-gray-100 transition-colors" title="编辑">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="space-y-1.5 text-sm text-gray-600">
-          <div className="flex gap-2"><span>📅</span><span suppressHydrationWarning>{formatSessionDate(session.starts_at)}</span></div>
-          <div className="flex gap-2"><span>⏰</span>
-            <span suppressHydrationWarning>退出截止：{formatSessionDate(session.withdraw_deadline)}</span>
-          </div>
-          {/* Location with address + copy */}
-          <div className="flex gap-2">
-            <span>📍</span>
-            <div className="flex-1 min-w-0">
-              <span>{session.location}</span>
-              {(() => {
-                const addr = (session as any).location_address ?? presetAddress(session.location)
-                return addr ? (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-400 flex-1 leading-relaxed">{addr}</span>
-                    <CopyButton text={addr} />
-                  </div>
-                ) : null
-              })()}
+        {isEditing ? (
+          <div className="space-y-2 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">开始时间</label>
+                <input type="datetime-local" className="input text-xs" value={editFields.starts_at}
+                  onChange={e => setEditFields(f => ({ ...f, starts_at: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">退出截止</label>
+                <input type="datetime-local" className="input text-xs" value={editFields.withdraw_deadline}
+                  onChange={e => setEditFields(f => ({ ...f, withdraw_deadline: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">地点</label>
+              <input className="input" value={editFields.location}
+                onChange={e => setEditFields(f => ({ ...f, location: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">场地数</label>
+                <input type="number" min={1} className="input" value={editFields.court_count}
+                  onChange={e => setEditFields(f => ({ ...f, court_count: Number(e.target.value) }))} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">人数上限</label>
+                <input type="number" min={1} className="input" value={editFields.max_participants}
+                  onChange={e => setEditFields(f => ({ ...f, max_participants: Number(e.target.value) }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">注意事项</label>
+              <textarea className="input resize-none" rows={2} value={editFields.notes}
+                onChange={e => setEditFields(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={handleSaveEdit} disabled={saving}
+                className="flex-1 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold
+                           disabled:opacity-50 transition-colors">
+                {saving ? '保存中…' : '保存'}
+              </button>
+              <button onClick={() => setIsEditing(false)}
+                className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">
+                取消
+              </button>
             </div>
           </div>
-          <div className="flex gap-2"><span>🏸</span>
-            <span>{session.court_count}片场地 · {session.max_participants}人满员</span>
+        ) : (
+          <div className="space-y-1.5 text-sm text-gray-600">
+            <div className="flex gap-2"><span>📅</span><span suppressHydrationWarning>{formatSessionDate(session.starts_at)}</span></div>
+            <div className="flex gap-2"><span>⏰</span>
+              <span suppressHydrationWarning>退出截止：{formatSessionDate(session.withdraw_deadline)}</span>
+            </div>
+            {/* Location with address + copy */}
+            <div className="flex gap-2">
+              <span>📍</span>
+              <div className="flex-1 min-w-0">
+                <span>{session.location}</span>
+                {(() => {
+                  const addr = (session as any).location_address ?? presetAddress(session.location)
+                  return addr ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-400 flex-1 leading-relaxed">{addr}</span>
+                      <CopyButton text={addr} />
+                    </div>
+                  ) : null
+                })()}
+              </div>
+            </div>
+            <div className="flex gap-2"><span>🏸</span>
+              <span>{session.court_count}片场地 · {session.max_participants}人满员</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Admin controls */}
-        {isAdmin && session.status === 'open' && (
+        {isAdmin && session.status === 'open' && !isEditing && (
           <button onClick={handleLock} disabled={locking}
             className="w-full mt-2 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold
                        active:bg-blue-700 disabled:opacity-50 transition-colors">
