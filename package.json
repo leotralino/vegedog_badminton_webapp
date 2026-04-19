@@ -1,6 +1,7 @@
 {
   "name": "vegdog-badminton",
   "version": "0.9.4",
+  "license": "AGPL-3.0-only",
   "private": true,
   "scripts": {
     "dev": "next dev",
