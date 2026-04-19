@@ -35,6 +35,12 @@ const PAY_CLASS: Record<string, string> = {
 }
 const PAY_LABEL: Record<string, string> = { paid:'已付 ✓', unpaid:'未支付', waived:'已免' }
 
+function toLocalInput(isoUtc: string) {
+  const d = new Date(isoUtc)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
   async function copy() {
@@ -93,12 +99,13 @@ export default function SessionDetailClient({
   const [joinName,  setJoinName]  = useState('')
   const [joining,   setJoining]   = useState(false)
   const [locking,   setLocking]   = useState(false)
+  const [maxParticipants, setMaxParticipants] = useState(session.max_participants)
   const [isEditing, setIsEditing] = useState(false)
   const [editFields, setEditFields] = useState({
     title:             session.title,
     location:          session.location,
-    starts_at:         session.starts_at.slice(0, 16),
-    withdraw_deadline: session.withdraw_deadline.slice(0, 16),
+    starts_at:         toLocalInput(session.starts_at),
+    withdraw_deadline: toLocalInput(session.withdraw_deadline),
     court_count:       session.court_count,
     max_participants:  session.max_participants,
     notes:             session.notes ?? '',
@@ -185,6 +192,7 @@ export default function SessionDetailClient({
       .eq('id', session.id)
     setSaving(false)
     if (error) { showToast(error.message, false); return }
+    setMaxParticipants(Number(editFields.max_participants))
     showToast('已保存 ✓', true)
     setIsEditing(false)
     router.refresh()
@@ -202,7 +210,7 @@ export default function SessionDetailClient({
     const tempP: ParticipantWithProfile = {
       id: tempId, session_id: session.id, user_id: currentUser.id,
       display_name: name, queue_position: participants.length + 1,
-      status: joinedNow < session.max_participants ? 'joined' : 'waitlist',
+      status: joinedNow < maxParticipants ? 'joined' : 'waitlist',
       stayed_late: false, joined_at: new Date().toISOString(), withdrew_at: null,
       profile: { id: currentUser.id, nickname: currentUser.profile?.nickname ?? 'Player', avatar_url: currentUser.profile?.avatar_url ?? null, venmo_username: null },
     }
@@ -630,7 +638,7 @@ export default function SessionDetailClient({
               </div>
             </div>
             <div className="flex gap-2"><span>🏸</span>
-              <span>{session.court_count}片场地 · {session.max_participants}人满员</span>
+              <span>{session.court_count}片场地 · {maxParticipants}人满员</span>
             </div>
           </div>
         )}
@@ -770,7 +778,7 @@ export default function SessionDetailClient({
       <div className="card space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">
-            已报名（{joined.length}/{session.max_participants}）
+            已报名（{joined.length}/{maxParticipants}）
           </h2>
           {/* Admin search — locked sessions only */}
           {isAdmin && session.status === 'locked' && (
