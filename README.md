@@ -10,6 +10,8 @@
   <img src="https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat&logo=typescript" alt="TypeScript">
   <img src="https://img.shields.io/badge/Styling-Tailwind%20CSS-06B6D4?style=flat&logo=tailwindcss" alt="Tailwind CSS">
   <img src="https://img.shields.io/badge/Deployment-Vercel-000000?style=flat&logo=vercel" alt="Vercel">
+  <img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat" alt="AGPL-3.0">
+  <img src="https://img.shields.io/github/v/release/leotralino/vegedog_badminton_webapp?style=flat&color=orange" alt="Latest Release">
 </p>
 
 **菜狗（VegeDog）** 是一个基于 **Next.js + Supabase** 构建的全栈 Web 应用，旨在为菜狗羽毛球群提供简洁、高效的约球管理方案。
@@ -38,9 +40,11 @@
 
 - **自动化接龙**：一键参与报名，内置自动候补（Waitlist）机制。当正选名额空缺时，候补人员将按先后顺序自动填充。
 - **并发冲突保护**：数据库层面采用 PostgreSQL 咨询锁（Advisory Locks），确保在高并发点击场景下，报名顺序与剩余名额的绝对准确。
-- **智能晚退判定**：支持自定义"撤回截止时间"。系统自动判定退出行为属于"正常退出"还是"晚退"，并自动核算相应的违约费用。
+- **智能晚退判定**：支持自定义"撤回截止时间"。仅对主队列成员判定晚退，候补退出不受影响。
 - **多管理员支持**：接龙发起人可添加多名共同管理员，协作管理队列、付款及加时标记。
+- **接龙编辑**：管理员可在锁定前修改标题、时间、地点、人数等信息，调整人数上限时自动递补或退回候补。
 - **收款流程优化**：集成 Venmo 深度链接，一键跳转付款并自动预填金额与备注。付款状态自助更新，实时同步所有参与者。
+- **候补递补通知**：截止日期后有人晚退时，递补的候补用户自动收到邮件通知。
 - **发给球馆**：锁定接龙后，管理员一键将正式成员名单通过邮件发送给球馆。
 - **关注通知**：关注其他成员后，对方发起新接龙时自动收到邮件提醒。
 - **个人统计**：设置页展示参与次数、候补次数、发起次数、加时次数等数据。
@@ -62,9 +66,12 @@
 - [x] 付款追踪：Venmo 深度链接 + 自助标记付款状态 + 实时同步
 - [x] 发给球馆：一键邮件正式成员名单
 - [x] 关注通知：关注成员，接龙开启时邮件提醒
+- [x] 候补递补通知：截止后晚退触发邮件通知递补成员
+- [x] 接龙编辑：管理员修改标题、时间、地点、人数，人数变动自动调整队列
 - [x] 个人统计：参与次数、候补、发起、加时统计
 - [x] 参与者搜索：管理员在锁定接龙中快速定位成员
 - [x] Vercel Analytics 集成
+- [x] k6 压测：200 VU × 10 场次验证并发安全性
 
 ### 第三阶段：增强模块
 - [ ] 微信推送通知
