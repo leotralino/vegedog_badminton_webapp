@@ -230,7 +230,7 @@ begin
   if v_session.status in ('locked', 'closed') then
     raise exception 'Cannot withdraw from a locked or closed session';
   end if;
-  v_late       := now() > v_session.withdraw_deadline;
+  v_late       := now() > v_session.withdraw_deadline and v_participant.status = 'joined';
   v_new_status := case when v_late then 'late_withdraw' else 'withdrawn' end;
 
   update public.participants
