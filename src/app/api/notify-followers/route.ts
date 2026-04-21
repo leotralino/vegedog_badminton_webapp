@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
     .eq('id', sessionId)
     .single()
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  if (session.title.startsWith('k6')) return NextResponse.json({ ok: true, skipped: true })
 
   // Fetch followers of the initiator
   const { data: follows } = await supabase
