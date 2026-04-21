@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(req: NextRequest) {
+  if (process.env.ENABLE_EMAIL !== 'true') return NextResponse.json({ ok: true, skipped: true })
+
   const { sessionId } = await req.json()
   if (!sessionId) return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 })
 
@@ -18,7 +20,6 @@ export async function POST(req: NextRequest) {
     .eq('id', sessionId)
     .single()
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-  if (session.title.startsWith('k6')) return NextResponse.json({ ok: true, skipped: true })
 
   // Fetch followers of the initiator
   const { data: follows } = await supabase

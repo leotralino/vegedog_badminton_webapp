@@ -5,6 +5,8 @@ import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
+  if (process.env.ENABLE_EMAIL !== 'true') return NextResponse.json({ ok: true, skipped: true })
+
   const { sessionId } = await req.json()
   if (!sessionId) return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 })
 

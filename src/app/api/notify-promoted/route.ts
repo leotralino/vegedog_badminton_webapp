@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(req: NextRequest) {
+  if (process.env.ENABLE_EMAIL !== 'true') return NextResponse.json({ ok: true, skipped: true })
+
   const { sessionId, promotedUserId } = await req.json()
   if (!sessionId || !promotedUserId) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
