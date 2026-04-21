@@ -178,6 +178,15 @@ export default function SessionDetailClient({
   // ── Save session edits ───────────────────────────────────────────────
   async function handleSaveEdit() {
     setSaving(true)
+    const newMax = Number(editFields.max_participants)
+
+    // Update capacity via RPC so participants are promoted/demoted atomically
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const capResult = await (supabase.rpc as any)('update_session_capacity', {
+      p_session_id: session.id, p_max_participants: newMax,
+    })
+
+    // Update remaining fields directly
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase.from('sessions') as any)
       .update({
@@ -186,15 +195,17 @@ export default function SessionDetailClient({
         starts_at:         new Date(editFields.starts_at).toISOString(),
         withdraw_deadline: new Date(editFields.withdraw_deadline).toISOString(),
         court_count:       Number(editFields.court_count),
-        max_participants:  Number(editFields.max_participants),
         notes:             editFields.notes.trim() || null,
       })
       .eq('id', session.id)
+
     setSaving(false)
+    if (capResult.error) { showToast(capResult.error.message, false); return }
     if (error) { showToast(error.message, false); return }
-    setMaxParticipants(Number(editFields.max_participants))
+    setMaxParticipants(newMax)
     showToast('已保存 ✓', true)
     setIsEditing(false)
+    await refreshParticipants()
     router.refresh()
   }
 

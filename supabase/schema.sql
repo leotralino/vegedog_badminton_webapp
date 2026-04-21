@@ -161,6 +161,53 @@ begin
 end;
 $$;
 
+-- Update session capacity and reshuffle participants accordingly
+create or replace function public.update_session_capacity(
+  p_session_id      uuid,
+  p_max_participants int
+)
+returns void language plpgsql security definer as $$
+declare
+  v_current_joined int;
+  v_diff           int;
+begin
+  if not exists (
+    select 1 from public.session_admins
+    where session_id = p_session_id and user_id = auth.uid()
+  ) then raise exception 'Not an admin'; end if;
+
+  select count(*) into v_current_joined
+    from public.participants
+   where session_id = p_session_id and status = 'joined';
+
+  v_diff := p_max_participants - v_current_joined;
+
+  if v_diff > 0 then
+    -- Cap increased: promote first v_diff waitlisted users
+    update public.participants set status = 'joined'
+     where id in (
+       select id from public.participants
+        where session_id = p_session_id and status = 'waitlist'
+        order by queue_position
+        limit v_diff
+     );
+  elsif v_diff < 0 then
+    -- Cap decreased: demote last abs(v_diff) joined users back to waitlist
+    update public.participants set status = 'waitlist'
+     where id in (
+       select id from public.participants
+        where session_id = p_session_id and status = 'joined'
+        order by queue_position desc
+        limit abs(v_diff)
+     );
+  end if;
+
+  update public.sessions set max_participants = p_max_participants where id = p_session_id;
+end;
+$$;
+
+grant execute on function public.update_session_capacity to authenticated;
+
 -- Withdraw (handles late penalty + promotes first waitlisted participant)
 create or replace function public.withdraw_participant(
   p_participant_id uuid,
