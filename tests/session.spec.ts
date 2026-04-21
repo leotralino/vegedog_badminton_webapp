@@ -80,8 +80,8 @@ test.describe('Session lifecycle', () => {
     await page.locator('button', { hasText: /以".*"加入/ }).click()
     await expect(page.getByText('已加入！🎉')).toBeVisible({ timeout: 5_000 })
 
-    // Click the red minus/withdraw button on own participant row
-    await page.locator('button.text-red-400').first().click()
+    // Click the 退出 button on own participant row
+    await page.locator('button', { hasText: '退出' }).first().click()
     await expect(page.getByText('已退出')).toBeVisible({ timeout: 5_000 })
     await expect(page.locator('text=已报名（0/')).toBeVisible()
   })
@@ -205,7 +205,7 @@ test.describe('Multi-user queue & waitlist promotion', () => {
     const ctx  = await browser.newContext({ storageState: authAs(userIndex) })
     const page = await ctx.newPage()
     await page.goto(sessionUrl)
-    await page.locator('button.text-red-400').first().click()
+    await page.locator('button', { hasText: '退出' }).first().click()
     await expect(page.getByText('已退出')).toBeVisible({ timeout: 8_000 })
     await ctx.close()
   }

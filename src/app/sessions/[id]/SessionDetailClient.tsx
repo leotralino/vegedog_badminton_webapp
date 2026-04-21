@@ -1059,10 +1059,8 @@ function ParticipantRow({
         {/* Withdraw — own entries, session not locked */}
         {isOwn && !isLocked && (
           <button onClick={onWithdraw}
-            className="w-7 h-7 flex items-center justify-center text-red-400 hover:text-red-600 active:scale-95">
-            <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd"/>
-            </svg>
+            className="text-xs px-2 py-1 rounded-lg font-medium bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 active:scale-95">
+            退出
           </button>
         )}
       </div>
