@@ -963,6 +963,7 @@ export default function SessionDetailClient({
                 onChange={e => { setSearchQuery(e.target.value); setMatchIdx(0); setDropdownVisible(true) }}
                 placeholder="搜索参与者姓名…"
                 className="flex-1 text-sm outline-none bg-transparent"
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
               />
               {/* Cycle counter when a match is active */}
               {currentMatchId && searchMatches.length > 0 && (
@@ -1331,6 +1332,7 @@ function PaymentSection({
                       value={search}
                       onChange={e => { setSearch(e.target.value); setSelected(null); setDropOpen(true) }}
                       onFocus={() => setDropOpen(true)}
+                      autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
                     />
                     {dropOpen && search && filtered.length > 0 && (
                       <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100
