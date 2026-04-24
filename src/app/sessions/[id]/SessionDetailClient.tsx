@@ -963,9 +963,10 @@ export default function SessionDetailClient({
                 ref={searchInputRef}
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setMatchIdx(0); setDropdownVisible(true) }}
+                type="search"
                 placeholder="搜索参与者姓名…"
                 className="flex-1 text-sm outline-none bg-transparent"
-                autoComplete="new-password" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
               />
               {/* Cycle counter when a match is active */}
               {currentMatchId && searchMatches.length > 0 && (
