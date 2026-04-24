@@ -110,8 +110,18 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
   return (
     <div className="space-y-4">
       {setup && (
-        <div className="rounded-xl bg-brand-50 border border-brand-200 px-4 py-3 text-sm text-brand-800 font-medium">
-          欢迎！请先设置你的昵称，然后就可以参与接龙了。
+        <div className="rounded-xl bg-brand-50 border border-brand-200 px-4 py-3 text-sm text-brand-800 space-y-1">
+          <p className="font-semibold">欢迎来到菜狗群App！请先设置你的昵称，然后就可以参与接龙了。</p>
+          <p className="text-brand-600">→ 点击右上角{' '}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              className="w-4 h-4 inline-block align-middle mb-0.5">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+            {' '}安装App
+          </p>
         </div>
       )}
       {avatarUrl && (
