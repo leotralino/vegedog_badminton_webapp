@@ -965,7 +965,7 @@ export default function SessionDetailClient({
                 onChange={e => { setSearchQuery(e.target.value); setMatchIdx(0); setDropdownVisible(true) }}
                 placeholder="搜索参与者姓名…"
                 className="flex-1 text-sm outline-none bg-transparent"
-                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                autoComplete="new-password" autoCorrect="off" autoCapitalize="off" spellCheck={false}
               />
               {/* Cycle counter when a match is active */}
               {currentMatchId && searchMatches.length > 0 && (
