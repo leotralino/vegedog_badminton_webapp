@@ -798,12 +798,13 @@ export default function SessionDetailClient({
           <h2 className="font-semibold text-gray-900">
             已报名（{joined.length}/{maxParticipants}）
           </h2>
-          {/* Admin search — locked sessions only */}
-          {isAdmin && session.status === 'locked' && (
+          {/* Participant search — locked sessions, all logged-in users */}
+          {currentUser && session.status === 'locked' && (
             <button
               onClick={() => searchOpen ? closeSearch() : setSearchOpen(true)}
-              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors
                           ${searchOpen ? 'bg-brand-100 text-brand-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
+              <span>查找</span>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd"/>
               </svg>
