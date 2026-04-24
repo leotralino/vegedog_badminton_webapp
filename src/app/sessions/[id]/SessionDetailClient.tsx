@@ -1255,17 +1255,20 @@ function PaymentSection({
                       </svg>
                     </button>
                     {menuOpenId === method.id && (
-                      <div className="absolute left-0 top-7 z-20 bg-white border border-gray-100
-                                      rounded-xl shadow-lg overflow-hidden w-28">
-                        <button onClick={() => startEdit(method)}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                          编辑
-                        </button>
-                        <button onClick={() => removeMethod(method)}
-                          className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50">
-                          删除
-                        </button>
-                      </div>
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} />
+                        <div className="absolute left-0 top-7 z-20 bg-white border border-gray-100
+                                        rounded-xl shadow-lg overflow-hidden w-28">
+                          <button onClick={() => startEdit(method)}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            编辑
+                          </button>
+                          <button onClick={() => removeMethod(method)}
+                            className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50">
+                            删除
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
