@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { defaultStartsAt, defaultWithdrawDeadline, roundTo15, localToPacificISO } from '@/lib/dates'
+import { defaultStartsAt, defaultWithdrawDeadline, localToPacificISO } from '@/lib/dates'
+import DateTimePicker from '@/components/DateTimePicker'
 import { PRESET_LOCATIONS } from '@/lib/locations'
 import type { Profile } from '@/lib/types'
 
@@ -40,27 +41,26 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-const GUARD_MSG = '你确定要退出吗？内容不会保存。'
-
-/** Blocks browser close/refresh and in-app link clicks when active. */
-function useNavigationGuard(dirtyRef: React.RefObject<boolean>) {
+/** Blocks browser close/refresh; calls onBlock(href) for in-app link clicks. */
+function useNavigationGuard(
+  dirtyRef: React.RefObject<boolean>,
+  onBlock: (href: string) => void,
+) {
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!dirtyRef.current) return
       e.preventDefault()
-      e.returnValue = GUARD_MSG
+      e.returnValue = ''
     }
-    // Intercept all anchor clicks in capture phase before Next.js handles them
     const onLinkClick = (e: MouseEvent) => {
       if (!dirtyRef.current) return
       const anchor = (e.target as Element).closest('a[href]')
       if (!anchor) return
       const href = anchor.getAttribute('href') ?? ''
       if (!href || href.startsWith('#')) return
-      if (!window.confirm(GUARD_MSG)) {
-        e.preventDefault()
-        e.stopPropagation()
-      }
+      e.preventDefault()
+      e.stopPropagation()
+      onBlock(href)
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     document.addEventListener('click', onLinkClick, true)
@@ -68,7 +68,7 @@ function useNavigationGuard(dirtyRef: React.RefObject<boolean>) {
       window.removeEventListener('beforeunload', onBeforeUnload)
       document.removeEventListener('click', onLinkClick, true)
     }
-  }, [dirtyRef])
+  }, [dirtyRef, onBlock])
 }
 
 export default function NewSessionPage() {
@@ -77,7 +77,9 @@ export default function NewSessionPage() {
 
   // Navigation guard — becomes active on first user input, cleared on submit
   const dirtyRef = useRef(false)
-  useNavigationGuard(dirtyRef)
+  const [blockedHref, setBlockedHref] = useState<string | null>(null)
+  const handleBlock = useCallback((href: string) => setBlockedHref(href), [])
+  useNavigationGuard(dirtyRef, handleBlock)
 
   // Location state
   const [locDropOpen,    setLocDropOpen]    = useState(false)
@@ -146,9 +148,8 @@ export default function NewSessionPage() {
   }
 
   function handleStartsAtChange(value: string) {
-    const rounded = roundTo15(value)
-    set('starts_at', rounded)
-    set('withdraw_deadline', defaultWithdrawDeadline(rounded))
+    set('starts_at', value)
+    set('withdraw_deadline', defaultWithdrawDeadline(value))
   }
 
   async function submit(e: React.FormEvent) {
@@ -331,21 +332,17 @@ export default function NewSessionPage() {
         </div>
 
         {/* Schedule */}
-        <div className="card space-y-3">
+        <div className="card space-y-3 overflow-hidden">
           <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">
             时间 <span className="font-normal normal-case text-gray-400">（太平洋时区）</span>
           </h2>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">开始时间</label>
-            <input type="datetime-local" className="input"
-              value={form.starts_at} step={900}
-              onChange={e => handleStartsAtChange(e.target.value)} />
+            <DateTimePicker label="开始时间" value={form.starts_at} onChange={handleStartsAtChange} />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">退出截止时间</label>
-            <input type="datetime-local" className="input"
-              value={form.withdraw_deadline} step={900} max={form.starts_at}
-              onChange={e => set('withdraw_deadline', roundTo15(e.target.value))} />
+            <DateTimePicker label="退出截止时间" value={form.withdraw_deadline} onChange={v => set('withdraw_deadline', v)} />
           </div>
         </div>
 
@@ -442,6 +439,31 @@ export default function NewSessionPage() {
         </button>
 
       </form>
+
+      {/* Custom leave-confirm dialog */}
+      {blockedHref && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setBlockedHref(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <p className="text-base font-semibold text-gray-900">确定要退出吗？</p>
+            <p className="text-sm text-gray-500">内容不会保存。</p>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setBlockedHref(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 active:bg-gray-50">
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => { dirtyRef.current = false; router.push(blockedHref) }}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold active:opacity-80">
+                退出
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

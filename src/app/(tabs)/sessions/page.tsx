@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import SessionCard from '@/components/SessionCard'
 import type { SessionWithInitiator } from '@/lib/types'
@@ -41,11 +42,11 @@ export default async function SessionsPage() {
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">接龙</h1>
-        <a href="/sessions/new"
+        <Link href="/sessions/new"
           className="text-sm font-semibold text-white bg-brand-600 px-3 py-1.5 rounded-lg
                      active:bg-brand-700 transition-colors">
           + 发起接龙
-        </a>
+        </Link>
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/dog_chase.png" alt="" aria-hidden="true"

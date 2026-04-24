@@ -110,8 +110,18 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
   return (
     <div className="space-y-4">
       {setup && (
-        <div className="rounded-xl bg-brand-50 border border-brand-200 px-4 py-3 text-sm text-brand-800 font-medium">
-          欢迎！请先设置你的昵称，然后就可以参与接龙了。
+        <div className="rounded-xl bg-brand-50 border border-brand-200 px-4 py-3 text-sm text-brand-800 space-y-1">
+          <p className="font-semibold">欢迎来到菜狗群App！请先设置你的昵称，然后就可以参与接龙了。</p>
+          <p className="text-brand-600">→ 点击右上角{' '}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              className="w-4 h-4 inline-block align-middle mb-0.5">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+            {' '}安装App
+          </p>
         </div>
       )}
       {avatarUrl && (
@@ -583,7 +593,7 @@ function PwaInstallButton() {
           <polyline points="7 10 12 15 17 10"/>
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
-        安装
+        安装App
       </button>
 
       {showGuide && (
@@ -594,9 +604,30 @@ function PwaInstallButton() {
             <div className="text-sm text-gray-500 space-y-2">
               {isIos ? (
                 <>
-                  <p>1. 点击 Safari 底部 <span className="font-medium text-gray-700">分享</span> 按钮（□↑）</p>
-                  <p>2. 向下滑动，选择 <span className="font-medium text-gray-700">添加到主屏幕</span></p>
-                  <p>3. 点击右上角 <span className="font-medium text-gray-700">添加</span></p>
+                  <p>1. 点击 Safari 底部
+                    {' '}<span className="font-medium text-gray-700">共享</span>
+                    {' '}按钮
+                    {/* iPhone share icon */}
+                    {' '}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      className="w-4 h-4 inline-block align-middle mb-0.5">
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                      <polyline points="16 6 12 2 8 6"/>
+                      <line x1="12" y1="2" x2="12" y2="15"/>
+                    </svg>
+                  </p>
+                  <p>2. 查看更多，选择
+                    {' '}<span className="font-medium text-gray-700">添加至主屏幕</span>
+                    {/* iPhone add-to-homescreen icon */}
+                    {' '}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      className="w-4 h-4 inline-block align-middle mb-0.5">
+                      <rect x="3" y="3" width="18" height="18" rx="3"/>
+                      <line x1="12" y1="8" x2="12" y2="16"/>
+                      <line x1="8" y1="12" x2="16" y2="12"/>
+                    </svg>
+                  </p>
+                  <p>3. 点击右上角 <span className="font-medium text-gray-700">添加</span>。打开后请 toggle on <span className="font-medium text-gray-700">作为网页App打开</span>。</p>
                 </>
               ) : (
                 <p>请使用浏览器菜单中的"安装应用"或"添加到主屏幕"选项。</p>

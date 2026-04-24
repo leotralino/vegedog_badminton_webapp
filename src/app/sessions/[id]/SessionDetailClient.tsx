@@ -9,6 +9,7 @@ import type {
   PaymentMethod, PaymentRecord, Profile, PaymentMethodType, SessionAdmin,
 } from '@/lib/types'
 import { presetAddress } from '@/lib/locations'
+import DateTimePicker from '@/components/DateTimePicker'
 
 // ── Props ──────────────────────────────────────────────────────────────────
 interface Props {
@@ -73,8 +74,10 @@ function openVenmo(accountRef: string, amount?: number | null, appUsername?: str
   const note = appUsername ? `${appUsername}` : `菜狗 @${username}`
   const params = new URLSearchParams({ txn: 'pay', recipients: username, note })
   if (amount) params.set('amount', amount.toFixed(2))
+  // URLSearchParams encodes spaces as +; Venmo expects %20
+  const query = params.toString().replace(/\+/g, '%20')
   // Try app deep link first; fall back to web if app not installed
-  window.location.href = `venmo://paycharge?${params}`
+  window.location.href = `venmo://paycharge?${query}`
   setTimeout(() => {
     window.open(`https://venmo.com/${username}`, '_blank')
   }, 1500)
@@ -582,16 +585,16 @@ export default function SessionDetailClient({
 
         {isEditing ? (
           <div className="space-y-2 text-sm">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">开始时间</label>
-                <input type="datetime-local" className="input text-xs" value={editFields.starts_at}
-                  onChange={e => setEditFields(f => ({ ...f, starts_at: e.target.value }))} />
+                <DateTimePicker label="开始时间" value={editFields.starts_at}
+                  onChange={v => setEditFields(f => ({ ...f, starts_at: v }))} />
               </div>
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">退出截止</label>
-                <input type="datetime-local" className="input text-xs" value={editFields.withdraw_deadline}
-                  onChange={e => setEditFields(f => ({ ...f, withdraw_deadline: e.target.value }))} />
+                <DateTimePicker label="退出截止时间" value={editFields.withdraw_deadline}
+                  onChange={v => setEditFields(f => ({ ...f, withdraw_deadline: v }))} />
               </div>
             </div>
             <div>
@@ -747,8 +750,8 @@ export default function SessionDetailClient({
 
       {/* Notes card — below meta */}
       {session.notes && (
-        <div className="card bg-brand-50 border border-brand-100">
-          <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-2">注意事项</p>
+        <div className="card bg-pink-50 border border-pink-100">
+          <p className="text-xs font-semibold text-pink-600 uppercase tracking-wide mb-2">注意事项</p>
           <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{session.notes}</p>
         </div>
       )}
@@ -795,12 +798,13 @@ export default function SessionDetailClient({
           <h2 className="font-semibold text-gray-900">
             已报名（{joined.length}/{maxParticipants}）
           </h2>
-          {/* Admin search — locked sessions only */}
-          {isAdmin && session.status === 'locked' && (
+          {/* Participant search — locked sessions, all logged-in users */}
+          {currentUser && session.status === 'locked' && (
             <button
               onClick={() => searchOpen ? closeSearch() : setSearchOpen(true)}
-              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors
                           ${searchOpen ? 'bg-brand-100 text-brand-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
+              <span>查找</span>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd"/>
               </svg>
@@ -892,6 +896,7 @@ export default function SessionDetailClient({
         <PaymentSection
           session={session}
           participants={[...joined, ...waitlist]}
+          admins={admins}
           paymentMethods={paymentMethods}
           paymentRecords={payRecords}
           currentUserId={currentUser?.id}
@@ -958,8 +963,10 @@ export default function SessionDetailClient({
                 ref={searchInputRef}
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setMatchIdx(0); setDropdownVisible(true) }}
+                type="search"
                 placeholder="搜索参与者姓名…"
                 className="flex-1 text-sm outline-none bg-transparent"
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
               />
               {/* Cycle counter when a match is active */}
               {currentMatchId && searchMatches.length > 0 && (
@@ -1070,12 +1077,13 @@ function ParticipantRow({
 
 // ── Payment section ────────────────────────────────────────────────────────
 function PaymentSection({
-  session, participants, paymentMethods, paymentRecords,
+  session, participants, admins, paymentMethods, paymentRecords,
   currentUserId, currentUserNickname, isAdmin, onMethodAdded, onMethodUpdated, onMethodRemoved,
   showConfirm,
 }: {
   session: SessionWithInitiator
   participants: ParticipantWithProfile[]
+  admins: SessionAdmin[]
   paymentMethods: PaymentMethod[]
   paymentRecords: PaymentRecord[]
   currentUserId?: string
@@ -1098,8 +1106,20 @@ function PaymentSection({
   const [venmoPending, setVenmoPending] = useState<{ accountRef: string; amount?: number | null; note: string } | null>(null)
   const [dropOpen,  setDropOpen]  = useState(false)
 
+  // Merge admins not already in participants into the search pool
+  const adminEntries: ParticipantWithProfile[] = admins
+    .filter(a => !participants.some(p => p.user_id === a.user_id))
+    .map(a => ({
+      id: `admin-${a.user_id}`, session_id: session.id, user_id: a.user_id,
+      display_name: (a.profile as any)?.nickname ?? a.user_id,
+      queue_position: -1, status: 'joined' as const,
+      stayed_late: false, joined_at: '', withdrew_at: null,
+      profile: { id: a.user_id, nickname: (a.profile as any)?.nickname ?? null,
+                 avatar_url: (a.profile as any)?.avatar_url ?? null, venmo_username: null },
+    }))
+
   // Deduplicate participants by user_id for the search dropdown
-  const uniqueUsers = participants.filter(
+  const uniqueUsers = [...participants, ...adminEntries].filter(
     (p, i, arr) => arr.findIndex(x => x.user_id === p.user_id) === i
   )
   const filtered = uniqueUsers.filter(p =>
@@ -1239,17 +1259,20 @@ function PaymentSection({
                       </svg>
                     </button>
                     {menuOpenId === method.id && (
-                      <div className="absolute left-0 top-7 z-20 bg-white border border-gray-100
-                                      rounded-xl shadow-lg overflow-hidden w-28">
-                        <button onClick={() => startEdit(method)}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                          编辑
-                        </button>
-                        <button onClick={() => removeMethod(method)}
-                          className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50">
-                          删除
-                        </button>
-                      </div>
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} />
+                        <div className="absolute left-0 top-7 z-20 bg-white border border-gray-100
+                                        rounded-xl shadow-lg overflow-hidden w-28">
+                          <button onClick={() => startEdit(method)}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            编辑
+                          </button>
+                          <button onClick={() => removeMethod(method)}
+                            className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50">
+                            删除
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
@@ -1312,6 +1335,7 @@ function PaymentSection({
                       value={search}
                       onChange={e => { setSearch(e.target.value); setSelected(null); setDropOpen(true) }}
                       onFocus={() => setDropOpen(true)}
+                      autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
                     />
                     {dropOpen && search && filtered.length > 0 && (
                       <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100

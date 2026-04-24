@@ -6,11 +6,13 @@ const STATUS_LABEL: Record<string, string> = {
   open:     '正在接龙',
   locked:   '已锁定',
   canceled: '已取消',
+  closed:   '已结束',
 }
 const STATUS_CLASS: Record<string, string> = {
   open:     'bg-brand-100 text-brand-700',
   locked:   'bg-blue-100 text-blue-700',
   canceled: 'bg-red-100 text-red-700',
+  closed:   'bg-gray-100 text-gray-500',
 }
 
 interface Props {
