@@ -41,27 +41,26 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-const GUARD_MSG = '你确定要退出吗？内容不会保存。'
-
-/** Blocks browser close/refresh and in-app link clicks when active. */
-function useNavigationGuard(dirtyRef: React.RefObject<boolean>) {
+/** Blocks browser close/refresh; calls onBlock(href) for in-app link clicks. */
+function useNavigationGuard(
+  dirtyRef: React.RefObject<boolean>,
+  onBlock: (href: string) => void,
+) {
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!dirtyRef.current) return
       e.preventDefault()
-      e.returnValue = GUARD_MSG
+      e.returnValue = ''
     }
-    // Intercept all anchor clicks in capture phase before Next.js handles them
     const onLinkClick = (e: MouseEvent) => {
       if (!dirtyRef.current) return
       const anchor = (e.target as Element).closest('a[href]')
       if (!anchor) return
       const href = anchor.getAttribute('href') ?? ''
       if (!href || href.startsWith('#')) return
-      if (!window.confirm(GUARD_MSG)) {
-        e.preventDefault()
-        e.stopPropagation()
-      }
+      e.preventDefault()
+      e.stopPropagation()
+      onBlock(href)
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     document.addEventListener('click', onLinkClick, true)
@@ -69,7 +68,7 @@ function useNavigationGuard(dirtyRef: React.RefObject<boolean>) {
       window.removeEventListener('beforeunload', onBeforeUnload)
       document.removeEventListener('click', onLinkClick, true)
     }
-  }, [dirtyRef])
+  }, [dirtyRef, onBlock])
 }
 
 export default function NewSessionPage() {
@@ -78,7 +77,9 @@ export default function NewSessionPage() {
 
   // Navigation guard — becomes active on first user input, cleared on submit
   const dirtyRef = useRef(false)
-  useNavigationGuard(dirtyRef)
+  const [blockedHref, setBlockedHref] = useState<string | null>(null)
+  const handleBlock = useCallback((href: string) => setBlockedHref(href), [])
+  useNavigationGuard(dirtyRef, handleBlock)
 
   // Location state
   const [locDropOpen,    setLocDropOpen]    = useState(false)
@@ -438,6 +439,31 @@ export default function NewSessionPage() {
         </button>
 
       </form>
+
+      {/* Custom leave-confirm dialog */}
+      {blockedHref && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setBlockedHref(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <p className="text-base font-semibold text-gray-900">确定要退出吗？</p>
+            <p className="text-sm text-gray-500">内容不会保存。</p>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setBlockedHref(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 active:bg-gray-50">
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => { dirtyRef.current = false; router.push(blockedHref) }}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold active:opacity-80">
+                退出
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
