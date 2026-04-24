@@ -892,6 +892,7 @@ export default function SessionDetailClient({
         <PaymentSection
           session={session}
           participants={[...joined, ...waitlist]}
+          admins={admins}
           paymentMethods={paymentMethods}
           paymentRecords={payRecords}
           currentUserId={currentUser?.id}
@@ -1070,12 +1071,13 @@ function ParticipantRow({
 
 // ── Payment section ────────────────────────────────────────────────────────
 function PaymentSection({
-  session, participants, paymentMethods, paymentRecords,
+  session, participants, admins, paymentMethods, paymentRecords,
   currentUserId, currentUserNickname, isAdmin, onMethodAdded, onMethodUpdated, onMethodRemoved,
   showConfirm,
 }: {
   session: SessionWithInitiator
   participants: ParticipantWithProfile[]
+  admins: SessionAdmin[]
   paymentMethods: PaymentMethod[]
   paymentRecords: PaymentRecord[]
   currentUserId?: string
@@ -1098,8 +1100,20 @@ function PaymentSection({
   const [venmoPending, setVenmoPending] = useState<{ accountRef: string; amount?: number | null; note: string } | null>(null)
   const [dropOpen,  setDropOpen]  = useState(false)
 
+  // Merge admins not already in participants into the search pool
+  const adminEntries: ParticipantWithProfile[] = admins
+    .filter(a => !participants.some(p => p.user_id === a.user_id))
+    .map(a => ({
+      id: `admin-${a.user_id}`, session_id: session.id, user_id: a.user_id,
+      display_name: (a.profile as any)?.nickname ?? a.user_id,
+      queue_position: -1, status: 'joined' as const,
+      stayed_late: false, joined_at: '', withdrew_at: null,
+      profile: { id: a.user_id, nickname: (a.profile as any)?.nickname ?? null,
+                 avatar_url: (a.profile as any)?.avatar_url ?? null, venmo_username: null },
+    }))
+
   // Deduplicate participants by user_id for the search dropdown
-  const uniqueUsers = participants.filter(
+  const uniqueUsers = [...participants, ...adminEntries].filter(
     (p, i, arr) => arr.findIndex(x => x.user_id === p.user_id) === i
   )
   const filtered = uniqueUsers.filter(p =>
