@@ -64,7 +64,7 @@ export default function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 backdrop-blur border-t" style={{ background: 'hsl(35, 40%, 97%)', borderColor: 'hsl(35, 20%, 85%)' }}>
+    <nav className="fixed bottom-0 inset-x-0 z-40 backdrop-blur border-t" style={{ background: 'hsl(35, 40%, 97%)', borderColor: 'hsl(35, 20%, 85%)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="max-w-xs mx-auto flex w-full">
         {tabs.map(tab => {
           const active = pathname === tab.href
