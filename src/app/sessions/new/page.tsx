@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { defaultStartsAt, defaultWithdrawDeadline, roundTo15, localToPacificISO } from '@/lib/dates'
+import { defaultStartsAt, defaultWithdrawDeadline, localToPacificISO } from '@/lib/dates'
+import DateTimePicker from '@/components/DateTimePicker'
 import { PRESET_LOCATIONS } from '@/lib/locations'
 import type { Profile } from '@/lib/types'
 
@@ -146,9 +147,8 @@ export default function NewSessionPage() {
   }
 
   function handleStartsAtChange(value: string) {
-    const rounded = roundTo15(value)
-    set('starts_at', rounded)
-    set('withdraw_deadline', defaultWithdrawDeadline(rounded))
+    set('starts_at', value)
+    set('withdraw_deadline', defaultWithdrawDeadline(value))
   }
 
   async function submit(e: React.FormEvent) {
@@ -337,19 +337,11 @@ export default function NewSessionPage() {
           </h2>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">开始时间</label>
-            <div className="overflow-hidden rounded-xl">
-              <input type="datetime-local" className="input"
-                value={form.starts_at} step={900}
-                onChange={e => handleStartsAtChange(e.target.value)} />
-            </div>
+            <DateTimePicker label="开始时间" value={form.starts_at} onChange={handleStartsAtChange} />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">退出截止时间</label>
-            <div className="overflow-hidden rounded-xl">
-              <input type="datetime-local" className="input"
-                value={form.withdraw_deadline} step={900} max={form.starts_at}
-                onChange={e => set('withdraw_deadline', roundTo15(e.target.value))} />
-            </div>
+            <DateTimePicker label="退出截止时间" value={form.withdraw_deadline} onChange={v => set('withdraw_deadline', v)} />
           </div>
         </div>
 

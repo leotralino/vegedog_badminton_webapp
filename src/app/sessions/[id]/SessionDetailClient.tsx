@@ -9,6 +9,7 @@ import type {
   PaymentMethod, PaymentRecord, Profile, PaymentMethodType, SessionAdmin,
 } from '@/lib/types'
 import { presetAddress } from '@/lib/locations'
+import DateTimePicker from '@/components/DateTimePicker'
 
 // ── Props ──────────────────────────────────────────────────────────────────
 interface Props {
@@ -584,16 +585,16 @@ export default function SessionDetailClient({
 
         {isEditing ? (
           <div className="space-y-2 text-sm">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">开始时间</label>
-                <input type="datetime-local" className="input text-xs" value={editFields.starts_at}
-                  onChange={e => setEditFields(f => ({ ...f, starts_at: e.target.value }))} />
+                <DateTimePicker label="开始时间" value={editFields.starts_at}
+                  onChange={v => setEditFields(f => ({ ...f, starts_at: v }))} />
               </div>
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">退出截止</label>
-                <input type="datetime-local" className="input text-xs" value={editFields.withdraw_deadline}
-                  onChange={e => setEditFields(f => ({ ...f, withdraw_deadline: e.target.value }))} />
+                <DateTimePicker label="退出截止时间" value={editFields.withdraw_deadline}
+                  onChange={v => setEditFields(f => ({ ...f, withdraw_deadline: v }))} />
               </div>
             </div>
             <div>
