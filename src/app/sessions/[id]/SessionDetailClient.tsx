@@ -750,8 +750,8 @@ export default function SessionDetailClient({
 
       {/* Notes card — below meta */}
       {session.notes && (
-        <div className="card bg-brand-50 border border-brand-100">
-          <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-2">注意事项</p>
+        <div className="card bg-pink-50 border border-pink-100">
+          <p className="text-xs font-semibold text-pink-600 uppercase tracking-wide mb-2">注意事项</p>
           <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{session.notes}</p>
         </div>
       )}
