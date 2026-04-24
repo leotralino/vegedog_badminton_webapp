@@ -73,8 +73,10 @@ function openVenmo(accountRef: string, amount?: number | null, appUsername?: str
   const note = appUsername ? `${appUsername}` : `菜狗 @${username}`
   const params = new URLSearchParams({ txn: 'pay', recipients: username, note })
   if (amount) params.set('amount', amount.toFixed(2))
+  // URLSearchParams encodes spaces as +; Venmo expects %20
+  const query = params.toString().replace(/\+/g, '%20')
   // Try app deep link first; fall back to web if app not installed
-  window.location.href = `venmo://paycharge?${params}`
+  window.location.href = `venmo://paycharge?${query}`
   setTimeout(() => {
     window.open(`https://venmo.com/${username}`, '_blank')
   }, 1500)
