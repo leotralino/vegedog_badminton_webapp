@@ -331,19 +331,19 @@ export default function NewSessionPage() {
         </div>
 
         {/* Schedule */}
-        <div className="card space-y-3">
+        <div className="card space-y-3 overflow-hidden">
           <h2 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">
             时间 <span className="font-normal normal-case text-gray-400">（太平洋时区）</span>
           </h2>
-          <div>
+          <div className="min-w-0">
             <label className="text-sm font-medium text-gray-700 mb-1 block">开始时间</label>
-            <input type="datetime-local" className="input"
+            <input type="datetime-local" className="input w-full min-w-0"
               value={form.starts_at} step={900}
               onChange={e => handleStartsAtChange(e.target.value)} />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-sm font-medium text-gray-700 mb-1 block">退出截止时间</label>
-            <input type="datetime-local" className="input"
+            <input type="datetime-local" className="input w-full min-w-0"
               value={form.withdraw_deadline} step={900} max={form.starts_at}
               onChange={e => set('withdraw_deadline', roundTo15(e.target.value))} />
           </div>
