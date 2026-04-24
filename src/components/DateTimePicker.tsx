@@ -70,13 +70,17 @@ export default function DateTimePicker({ value, onChange, label }: Props) {
 
   const displayDate = `${WEEKDAYS[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}`
   const displayTime = `${h12}:${String(minutes).padStart(2,'0')}${isPm ? 'pm' : 'am'}`
+  const timeColor =
+    h24 >= 17 ? 'text-blue-600' :
+    h24 >= 12 ? 'text-orange-500' :
+                'text-red-500'
 
   return (
     <>
       <button type="button" onClick={() => { setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); setOpen(true) }}
         className="input text-left flex items-center justify-between gap-2">
         <span className="text-gray-700">{displayDate}</span>
-        <span className="text-brand-600 font-semibold shrink-0">{displayTime}</span>
+        <span className={`font-semibold shrink-0 ${timeColor}`}>{displayTime}</span>
       </button>
 
       {open && (
