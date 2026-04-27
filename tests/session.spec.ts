@@ -144,8 +144,8 @@ test.describe('Session lifecycle', () => {
     await page.locator('button', { hasText: '🔒 锁定接龙' }).click()
     await expect(page.getByText('已锁定')).toBeVisible({ timeout: 5_000 })
 
-    // Payment record should appear as 未支付
-    const payBtn = page.locator('button', { hasText: '未支付' }).first()
+    // Payment record should appear as ❗标记已支付
+    const payBtn = page.locator('button', { hasText: '❗标记已支付' }).first()
     await expect(payBtn).toBeVisible()
 
     // Toggle to paid
@@ -154,7 +154,7 @@ test.describe('Session lifecycle', () => {
 
     // Toggle back to unpaid
     await page.locator('button', { hasText: '已付 ✓' }).first().click()
-    await expect(page.locator('button', { hasText: '未支付' }).first()).toBeVisible({ timeout: 5_000 })
+    await expect(page.locator('button', { hasText: '❗标记已支付' }).first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('close session after locking', async ({ page }) => {
@@ -214,7 +214,7 @@ test.describe('Multi-user queue & waitlist promotion', () => {
     const ctx  = await browser.newContext({ storageState: authAs(userIndex) })
     const page = await ctx.newPage()
     await page.goto(sessionUrl)
-    await page.locator('button', { hasText: '未支付' }).first().click()
+    await page.locator('button', { hasText: '❗标记已支付' }).first().click()
     await expect(page.locator('button', { hasText: '已付 ✓' }).first()).toBeVisible({ timeout: 5_000 })
     await ctx.close()
   }

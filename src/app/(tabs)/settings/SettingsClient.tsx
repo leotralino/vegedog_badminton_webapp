@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types'
+import dynamic from 'next/dynamic'
+
+const AvatarCropper = dynamic(() => import('@/components/AvatarCropper'), { ssr: false })
 
 export type ChangelogEntry = { version: string; date: string; notes: string[] }
 
@@ -29,6 +32,9 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
   const [draftVenmo,      setDraftVenmo]      = useState('')
   const [draftPassword,   setDraftPassword]   = useState('')
   const [draftPassword2,  setDraftPassword2]  = useState('')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [cropSrc,         setCropSrc]         = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     async function load() {
@@ -105,6 +111,40 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
     }
   }
 
+  function handleAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    setCropSrc(url)
+    if (avatarInputRef.current) avatarInputRef.current.value = ''
+  }
+
+  async function handleCropConfirm(blob: Blob) {
+    setCropSrc(null)
+    setError('')
+    setUploadingAvatar(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const path = `${user.id}/avatar.jpg`
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      // bust cache so the new image loads
+      const busted = `${publicUrl}?t=${Date.now()}`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: dbErr } = await (supabase.from('profiles') as any)
+        .update({ avatar_url: busted, updated_at: new Date().toISOString() })
+        .eq('id', user.id)
+      if (dbErr) throw dbErr
+      setAvatarUrl(busted)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '上传失败，请重试')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   if (loading) return <div className="card animate-pulse h-48" />
 
   return (
@@ -124,12 +164,31 @@ function AccountTab({ onSignOut, setup }: { onSignOut: () => void; setup?: boole
           </p>
         </div>
       )}
-      {avatarUrl && (
-        <div className="flex justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={avatarUrl} alt="avatar"
-            className="w-20 h-20 rounded-full border-2 border-brand-200 shadow object-cover" />
-        </div>
+      <div className="flex flex-col items-center gap-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={avatarUrl || `https://api.dicebear.com/9.x/thumbs/svg?seed=default`}
+          alt="avatar"
+          className="w-20 h-20 rounded-full border-2 border-brand-200 shadow object-cover"
+        />
+        <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
+          onChange={handleAvatarPick} />
+        <button
+          type="button"
+          onClick={() => avatarInputRef.current?.click()}
+          disabled={uploadingAvatar}
+          className="text-xs text-brand-600 font-medium px-3 py-1 rounded-lg hover:bg-brand-50 transition-colors disabled:opacity-50">
+          {uploadingAvatar ? '上传中…' : '更换头像'}
+        </button>
+      </div>
+
+      {/* Crop modal */}
+      {cropSrc && (
+        <AvatarCropper
+          imageSrc={cropSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={() => { setCropSrc(null); URL.revokeObjectURL(cropSrc) }}
+        />
       )}
 
       <div className="card space-y-3">
@@ -627,7 +686,7 @@ function PwaInstallButton() {
                       <line x1="8" y1="12" x2="16" y2="12"/>
                     </svg>
                   </p>
-                  <p>3. 点击右上角 <span className="font-medium text-gray-700">添加</span>。打开后请 toggle on <span className="font-medium text-gray-700">作为网页App打开</span>。</p>
+                  <p>3. 请 toggle on <span className="font-medium text-gray-700">作为网页App打开</span>，然后点击右上角 <span className="font-medium text-gray-700">添加</span>。</p>
                 </>
               ) : (
                 <p>请使用浏览器菜单中的"安装应用"或"添加到主屏幕"选项。</p>
