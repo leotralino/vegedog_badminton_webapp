@@ -104,7 +104,8 @@ export default function SessionDetailClient({
   const [paymentMethods,  setPaymentMethods]  = useState(initialMethods)
   const [payRecords,      setPayRecords]      = useState(paymentRecords)
   const [admins,          setAdmins]          = useState<SessionAdmin[]>(initialAdmins)
-  const [renames,         setRenames]         = useState<ParticipantRename[]>([])
+  const [renames,           setRenames]           = useState<ParticipantRename[]>([])
+  const [historyCollapsed,  setHistoryCollapsed]  = useState(false)
   const [joinName,  setJoinName]  = useState('')
   const [joining,   setJoining]   = useState(false)
   const [locking,   setLocking]   = useState(false)
@@ -903,25 +904,38 @@ export default function SessionDetailClient({
           })),
         ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
         return (
-          <div className="card space-y-2">
-            <h2 className="font-semibold text-gray-900 text-sm">改动记录</h2>
-            {items.map((item, i) =>
-              item.kind === 'withdraw' ? (
-                <div key={item.p.id} className="flex items-center justify-between text-sm py-1">
-                  <span className="text-gray-400 line-through">{item.p.display_name}</span>
-                  {item.p.status === 'late_withdraw'
-                    ? <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
-                    : <span className="text-xs text-gray-400">退出</span>}
-                </div>
-              ) : (
-                <div key={`r-${item.r.id}-${i}`} className="flex items-center gap-1.5 text-sm py-1 text-gray-500">
-                  <span className="font-medium text-gray-600">{item.nickname}</span>
-                  <span>改名：</span>
-                  <span className="line-through text-gray-400">{item.r.old_name}</span>
-                  <span>→</span>
-                  <span className="text-gray-700">{item.r.new_name}</span>
-                </div>
-              )
+          <div className="card">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="font-semibold text-gray-900 text-sm">改动记录</h2>
+              <button
+                onClick={() => setHistoryCollapsed(c => !c)}
+                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <svg viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 transition-transform ${historyCollapsed ? '-rotate-90' : ''}`}>
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd"/>
+                </svg>
+              </button>
+            </div>
+            {!historyCollapsed && (
+              <div className="space-y-0.5 max-h-72 overflow-y-auto">
+                {items.map((item, i) =>
+                  item.kind === 'withdraw' ? (
+                    <div key={item.p.id} className="flex items-center justify-between text-sm py-1">
+                      <span className="text-gray-400 line-through">{item.p.display_name}</span>
+                      {item.p.status === 'late_withdraw'
+                        ? <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
+                        : <span className="text-xs text-gray-400">退出</span>}
+                    </div>
+                  ) : (
+                    <div key={`r-${item.r.id}-${i}`} className="flex items-center gap-1.5 text-sm py-1 text-gray-500 flex-wrap">
+                      <span className="font-medium text-gray-600">{item.nickname}</span>
+                      <span>改名：</span>
+                      <span className="line-through text-gray-400">{item.r.old_name}</span>
+                      <span>→</span>
+                      <span className="text-gray-700">{item.r.new_name}</span>
+                    </div>
+                  )
+                )}
+              </div>
             )}
           </div>
         )
