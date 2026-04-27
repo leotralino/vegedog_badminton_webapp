@@ -627,7 +627,7 @@ function PwaInstallButton() {
                       <line x1="8" y1="12" x2="16" y2="12"/>
                     </svg>
                   </p>
-                  <p>3. 点击右上角 <span className="font-medium text-gray-700">添加</span>。打开后请 toggle on <span className="font-medium text-gray-700">作为网页App打开</span>。</p>
+                  <p>3. 请 toggle on <span className="font-medium text-gray-700">作为网页App打开</span>，然后点击右上角 <span className="font-medium text-gray-700">添加</span>。</p>
                 </>
               ) : (
                 <p>请使用浏览器菜单中的"安装应用"或"添加到主屏幕"选项。</p>
