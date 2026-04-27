@@ -36,6 +36,11 @@ const PAY_CLASS: Record<string, string> = {
 }
 const PAY_LABEL: Record<string, string> = { paid:'已付 ✓', unpaid:'未支付', waived:'已免' }
 
+type ParticipantRename = {
+  id: string; participant_id: string; session_id: string
+  user_id: string; old_name: string; new_name: string; created_at: string
+}
+
 function toLocalInput(isoUtc: string) {
   const d = new Date(isoUtc)
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -99,6 +104,7 @@ export default function SessionDetailClient({
   const [paymentMethods,  setPaymentMethods]  = useState(initialMethods)
   const [payRecords,      setPayRecords]      = useState(paymentRecords)
   const [admins,          setAdmins]          = useState<SessionAdmin[]>(initialAdmins)
+  const [renames,         setRenames]         = useState<ParticipantRename[]>([])
   const [joinName,  setJoinName]  = useState('')
   const [joining,   setJoining]   = useState(false)
   const [locking,   setLocking]   = useState(false)
@@ -143,7 +149,17 @@ export default function SessionDetailClient({
     if (data) setPayRecords(data as PaymentRecord[])
   }, [session.id, supabase])
 
+  const refreshRenames = useCallback(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase.from('participant_renames') as any)
+      .select('*')
+      .eq('session_id', session.id)
+      .order('created_at', { ascending: false })
+    if (data) setRenames(data as ParticipantRename[])
+  }, [session.id, supabase])
+
   useEffect(() => {
+    refreshRenames()
     const channel = supabase
       .channel(`session-${session.id}`)
       .on('postgres_changes', {
@@ -154,9 +170,13 @@ export default function SessionDetailClient({
         event: '*', schema: 'public', table: 'payment_records',
         filter: `session_id=eq.${session.id}`,
       }, refreshPayRecords)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'participant_renames',
+        filter: `session_id=eq.${session.id}`,
+      }, refreshRenames)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [session.id, supabase, refreshParticipants, refreshPayRecords])
+  }, [session.id, supabase, refreshParticipants, refreshPayRecords, refreshRenames])
 
   // ── Default join name ────────────────────────────────────────────────
   useEffect(() => {
@@ -398,6 +418,22 @@ export default function SessionDetailClient({
   useEffect(() => {
     if (adminSearchOpen) setTimeout(() => adminInputRef.current?.focus(), 50)
   }, [adminSearchOpen])
+
+  // ── Rename own participant entry ──────────────────────────────────────────
+  async function handleRename(participantId: string, newName: string) {
+    if (!currentUser) return
+    const p = participants.find(x => x.id === participantId)
+    if (!p || newName.trim() === p.display_name) return
+    setParticipants(prev => prev.map(x => x.id === participantId ? { ...x, display_name: newName.trim() } : x))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('rename_participant', {
+      p_participant_id: participantId,
+      p_new_name: newName.trim(),
+    })
+    if (error) { showToast(error.message, false); refreshParticipants(); return }
+    showToast('已更新')
+    refreshRenames()
+  }
 
   // ── Self-service payment toggle ───────────────────────────────────────────
   async function handleTogglePayment(participantId: string) {
@@ -826,10 +862,12 @@ export default function SessionDetailClient({
                   isLocked={session.status === 'locked' || session.status === 'closed'}
                   allowActions={session.status === 'locked'}
                   isOwn={currentUser?.id === p.user_id}
+                  canEdit={currentUser?.id === p.user_id && session.status !== 'closed' && session.status !== 'canceled'}
                   payRecord={payRecords.find(r => r.participant_id === p.id)}
                   onWithdraw={() => handleWithdraw(p.id)}
                   onToggleLate={() => handleToggleLate(p)}
-                  onTogglePayment={() => handleTogglePayment(p.id)} />
+                  onTogglePayment={() => handleTogglePayment(p.id)}
+                  onRename={n => handleRename(p.id, n)} />
               </div>
             ))}
             {waitlist.length > 0 && (
@@ -843,10 +881,12 @@ export default function SessionDetailClient({
                       isLocked={session.status === 'locked' || session.status === 'closed'}
                       allowActions={false}
                       isOwn={currentUser?.id === p.user_id}
+                      canEdit={currentUser?.id === p.user_id && session.status !== 'closed' && session.status !== 'canceled'}
                       payRecord={payRecords.find(r => r.participant_id === p.id)}
                       onWithdraw={() => handleWithdraw(p.id)}
                       onToggleLate={() => handleToggleLate(p)}
-                      onTogglePayment={() => handleTogglePayment(p.id)} />
+                      onTogglePayment={() => handleTogglePayment(p.id)}
+                      onRename={n => handleRename(p.id, n)} />
                   </div>
                 ))}
               </>
@@ -855,20 +895,43 @@ export default function SessionDetailClient({
         )}
       </div>
 
-      {/* Withdrawn */}
-      {withdrawn.length > 0 && (
-        <div className="card space-y-2">
-          <h2 className="font-semibold text-gray-900 text-sm">已退出</h2>
-          {withdrawn.map(p => (
-            <div key={p.id} className="flex items-center justify-between text-sm py-1">
-              <span className="text-gray-500 line-through">{p.display_name}</span>
-              {p.status === 'late_withdraw' && (
-                <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* 改动记录 — withdrawals + renames unified timeline */}
+      {(withdrawn.length > 0 || renames.length > 0) && (() => {
+        type HistoryItem =
+          | { kind: 'withdraw'; p: ParticipantWithProfile; time: string }
+          | { kind: 'rename';   r: ParticipantRename;      nickname: string; time: string }
+        const items: HistoryItem[] = [
+          ...withdrawn.map(p => ({ kind: 'withdraw' as const, p, time: p.withdrew_at ?? '' })),
+          ...renames.map(r => ({
+            kind: 'rename' as const, r,
+            nickname: participants.find(p => p.user_id === r.user_id)?.profile?.nickname ?? '用户',
+            time: r.created_at,
+          })),
+        ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+        return (
+          <div className="card space-y-2">
+            <h2 className="font-semibold text-gray-900 text-sm">改动记录</h2>
+            {items.map((item, i) =>
+              item.kind === 'withdraw' ? (
+                <div key={item.p.id} className="flex items-center justify-between text-sm py-1">
+                  <span className="text-gray-400 line-through">{item.p.display_name}</span>
+                  {item.p.status === 'late_withdraw'
+                    ? <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
+                    : <span className="text-xs text-gray-400">退出</span>}
+                </div>
+              ) : (
+                <div key={`r-${item.r.id}-${i}`} className="flex items-center gap-1.5 text-sm py-1 text-gray-500">
+                  <span className="font-medium text-gray-600">{item.nickname}</span>
+                  <span>改名：</span>
+                  <span className="line-through text-gray-400">{item.r.old_name}</span>
+                  <span>→</span>
+                  <span className="text-gray-700">{item.r.new_name}</span>
+                </div>
+              )
+            )}
+          </div>
+        )
+      })()}
 
       {/* Stayed-late panel */}
       {(session.status === 'locked' || session.status === 'closed') &&
@@ -995,8 +1058,8 @@ export default function SessionDetailClient({
 
 // ── Participant row ────────────────────────────────────────────────────────
 function ParticipantRow({
-  p, rank, isAdmin, isLocked, allowActions, isOwn, payRecord,
-  onWithdraw, onToggleLate, onTogglePayment,
+  p, rank, isAdmin, isLocked, allowActions, isOwn, canEdit, payRecord,
+  onWithdraw, onToggleLate, onTogglePayment, onRename,
 }: {
   p: ParticipantWithProfile
   rank: number
@@ -1004,11 +1067,22 @@ function ParticipantRow({
   isLocked: boolean      // session is locked/closed — suppresses withdraw
   allowActions: boolean  // true only for joined rows in locked session — enables +时 and payment
   isOwn: boolean
+  canEdit?: boolean
   payRecord?: PaymentRecord
   onWithdraw: () => void
   onToggleLate: () => void
   onTogglePayment: () => void
+  onRename?: (newName: string) => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [draft,   setDraft]   = useState(p.display_name)
+
+  function submitEdit() {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== p.display_name) onRename?.(trimmed)
+    setEditing(false)
+  }
+
   return (
     <div className="flex items-center gap-3 py-1.5">
       {/* Rank badge */}
@@ -1025,9 +1099,34 @@ function ParticipantRow({
         className="w-8 h-8 rounded-full object-cover shrink-0 bg-gray-100"
       />
 
-      {/* Name */}
+      {/* Name — editable for own entries */}
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-gray-900 truncate block">{p.display_name}</span>
+        {editing ? (
+          <div className="flex items-center gap-1">
+            <input
+              className="text-sm border border-brand-300 rounded-lg px-2 py-0.5 flex-1 min-w-0 outline-none focus:ring-1 focus:ring-brand-400"
+              value={draft}
+              autoFocus
+              autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') submitEdit(); if (e.key === 'Escape') setEditing(false) }}
+            />
+            <button onClick={submitEdit} className="text-xs text-brand-600 font-bold px-1">✓</button>
+            <button onClick={() => { setDraft(p.display_name); setEditing(false) }} className="text-xs text-gray-400 px-1">✕</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-sm font-medium text-gray-900 truncate">{p.display_name}</span>
+            {canEdit && !editing && (
+              <button onClick={() => { setDraft(p.display_name); setEditing(true) }}
+                className="shrink-0 p-0.5 rounded text-gray-300 hover:text-gray-500 active:text-gray-700">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
