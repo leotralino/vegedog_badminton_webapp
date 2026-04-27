@@ -183,13 +183,7 @@ export default function SessionDetailClient({
     if (!currentUser) return
     const base = currentUser.profile?.nickname ?? 'Player'
     const mine = participants.filter(p => p.user_id === currentUser.id && (p.status === 'joined' || p.status === 'waitlist'))
-    const allMine = participants.filter(p => p.user_id === currentUser.id)
-    const maxIdx = allMine.reduce((max, p) => {
-      const m = p.display_name.match(/\+(\d+)$/)
-      return m ? Math.max(max, parseInt(m[1])) : Math.max(max, mine.length === 0 ? -1 : 0)
-    }, -1)
-    const nextIdx = maxIdx + 1
-    setJoinName(nextIdx === 0 ? base : `${base} +${nextIdx}`)
+    setJoinName(mine.length === 0 ? base : `${base} +${mine.length}`)
   }, [participants, currentUser])
 
   // ── Toast helper ──────────────────────────────────────────────────────
