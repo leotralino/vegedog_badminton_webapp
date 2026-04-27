@@ -183,7 +183,7 @@ export default function SessionDetailClient({
     if (!currentUser) return
     const base = currentUser.profile?.nickname ?? 'Player'
     const mine = participants.filter(p => p.user_id === currentUser.id && (p.status === 'joined' || p.status === 'waitlist'))
-    setJoinName(mine.length === 0 ? base : `${base} +${mine.length}`)
+    setJoinName(mine.length === 0 ? base : `${base} +${mine.length} = `)
   }, [participants, currentUser])
 
   // ── Toast helper ──────────────────────────────────────────────────────
