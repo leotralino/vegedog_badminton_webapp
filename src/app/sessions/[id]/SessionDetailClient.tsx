@@ -804,7 +804,7 @@ export default function SessionDetailClient({
               </button>
               {myActiveEntries.length > 0 && (
                 <p className="text-xs text-gray-400 text-center">
-                  已有 {myActiveEntries.length} 个报名，点击 – 可撤回。
+                  已有 {myActiveEntries.length} 个报名，点击「退出」可撤回。
                 </p>
               )}
             </>
