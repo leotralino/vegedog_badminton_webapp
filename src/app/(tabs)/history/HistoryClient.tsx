@@ -22,11 +22,6 @@ function groupByMonth(sessions: SessionWithInitiator[]): MonthGroup[] {
   return Array.from(map.values())
 }
 
-function currentMonthKey() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
 export default function HistoryClient({
   sessions,
   joinedBySession,
@@ -35,11 +30,7 @@ export default function HistoryClient({
   joinedBySession: Record<string, number>
 }) {
   const groups = groupByMonth(sessions)
-  const thisMonth = currentMonthKey()
-
-  const [openKeys, setOpenKeys] = useState<Set<string>>(
-    () => new Set(groups.map(g => g.key).filter(k => k === thisMonth))
-  )
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set())
 
   function toggle(key: string) {
     setOpenKeys(prev => {
