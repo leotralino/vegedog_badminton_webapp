@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatSessionDate } from '@/lib/dates'
@@ -123,10 +123,10 @@ export default function SessionDetailClient({
   const [saving, setSaving] = useState(false)
   const [toast,     setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
   const [confirm,   setConfirm]   = useState<{
-    title: string; message: string; onConfirm: () => void; danger?: boolean
+    title: string; message: React.ReactNode; onConfirm: () => void; danger?: boolean
   } | null>(null)
 
-  function showConfirm(title: string, message: string, onConfirm: () => void, danger = true) {
+  function showConfirm(title: string, message: React.ReactNode, onConfirm: () => void, danger = true) {
     setConfirm({ title, message, onConfirm, danger })
   }
 
@@ -859,7 +859,7 @@ export default function SessionDetailClient({
                   isOwn={currentUser?.id === p.user_id}
                   canEdit={currentUser?.id === p.user_id && session.status !== 'closed' && session.status !== 'canceled'}
                   payRecord={payRecords.find(r => r.participant_id === p.id)}
-                  onWithdraw={() => handleWithdraw(p.id)}
+                  onWithdraw={() => showConfirm('退出接龙', <span className="text-center block">确定要退出接龙吗？退出后需重新排队。<br/>若只需改名请点击&nbsp;<svg className="w-3.5 h-3.5 inline-block align-middle mb-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>&nbsp;按键</span>, () => handleWithdraw(p.id))}
                   onToggleLate={() => handleToggleLate(p)}
                   onTogglePayment={() => handleTogglePayment(p.id)}
                   onRename={n => handleRename(p.id, n)} />
@@ -878,7 +878,7 @@ export default function SessionDetailClient({
                       isOwn={currentUser?.id === p.user_id}
                       canEdit={currentUser?.id === p.user_id && session.status !== 'closed' && session.status !== 'canceled'}
                       payRecord={payRecords.find(r => r.participant_id === p.id)}
-                      onWithdraw={() => handleWithdraw(p.id)}
+                      onWithdraw={() => showConfirm('退出接龙', <span className="text-center block">确定要退出接龙吗？退出后需重新排队。<br/>若只需改名请点击&nbsp;<svg className="w-3.5 h-3.5 inline-block align-middle mb-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>&nbsp;按键</span>, () => handleWithdraw(p.id))}
                       onToggleLate={() => handleToggleLate(p)}
                       onTogglePayment={() => handleTogglePayment(p.id)}
                       onRename={n => handleRename(p.id, n)} />
