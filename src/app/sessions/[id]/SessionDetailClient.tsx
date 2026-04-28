@@ -913,25 +913,34 @@ export default function SessionDetailClient({
               </button>
             </div>
             {!historyCollapsed && (
-              <div className="space-y-0.5 max-h-72 overflow-y-auto">
-                {items.map((item, i) =>
-                  item.kind === 'withdraw' ? (
-                    <div key={item.p.id} className="flex items-center justify-between text-sm py-1">
-                      <span className="text-gray-400 line-through">{item.p.display_name}</span>
-                      {item.p.status === 'late_withdraw'
-                        ? <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
-                        : <span className="text-xs text-gray-400">退出</span>}
+              <div className="max-h-72 overflow-y-auto rounded-lg overflow-hidden">
+                {items.map((item, i) => {
+                  const ts = new Date(item.time)
+                  const label = `${ts.getMonth()+1}/${ts.getDate()} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}`
+                  const bg = i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  return item.kind === 'withdraw' ? (
+                    <div key={item.p.id} className={`px-2 py-1.5 ${bg}`}>
+                      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <span className="text-gray-400 line-through">{item.p.display_name}</span>
+                        {item.p.status === 'late_withdraw'
+                          ? <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
+                          : <span className="text-xs text-gray-400">退出</span>}
+                      </div>
                     </div>
                   ) : (
-                    <div key={`r-${item.r.id}-${i}`} className="flex items-center gap-1.5 text-sm py-1 text-gray-500 flex-wrap">
-                      <span className="font-medium text-gray-600">{item.nickname}</span>
-                      <span>改名：</span>
-                      <span className="line-through text-gray-400">{item.r.old_name}</span>
-                      <span>→</span>
-                      <span className="text-gray-700">{item.r.new_name}</span>
+                    <div key={`r-${item.r.id}-${i}`} className={`px-2 py-1.5 ${bg}`}>
+                      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                      <p className="text-sm text-gray-600 flex flex-wrap gap-1">
+                        <span className="font-medium">{item.nickname}</span>
+                        <span>改名：</span>
+                        <span className="line-through text-gray-400">{item.r.old_name}</span>
+                        <span>→</span>
+                        <span className="text-gray-700">{item.r.new_name}</span>
+                      </p>
                     </div>
                   )
-                )}
+                })}
               </div>
             )}
           </div>
