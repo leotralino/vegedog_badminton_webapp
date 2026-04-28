@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatSessionDate } from '@/lib/dates'
@@ -123,10 +123,10 @@ export default function SessionDetailClient({
   const [saving, setSaving] = useState(false)
   const [toast,     setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
   const [confirm,   setConfirm]   = useState<{
-    title: string; message: string; onConfirm: () => void; danger?: boolean
+    title: string; message: React.ReactNode; onConfirm: () => void; danger?: boolean
   } | null>(null)
 
-  function showConfirm(title: string, message: string, onConfirm: () => void, danger = true) {
+  function showConfirm(title: string, message: React.ReactNode, onConfirm: () => void, danger = true) {
     setConfirm({ title, message, onConfirm, danger })
   }
 
@@ -282,10 +282,7 @@ export default function SessionDetailClient({
     showToast('已退出')
     await refreshParticipants()
 
-    // Notify promoted user only if withdrawal is past the deadline (late_withdraw)
-    // — before the deadline, promotions are routine; after, the person may not be watching
-    const isPastDeadline = new Date() > new Date(session.withdraw_deadline)
-    if (firstWaitlisted && isPastDeadline) {
+    if (firstWaitlisted) {
       fetch('/api/notify-promoted', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -530,8 +527,8 @@ export default function SessionDetailClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirm(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3">
-            <h3 className="text-base font-bold text-gray-900">{confirm.title}</h3>
-            <p className="text-sm text-gray-500 leading-relaxed">{confirm.message}</p>
+            <h3 className="text-base font-bold text-gray-900 text-center">{confirm.title}</h3>
+            <p className="text-sm text-gray-500 leading-relaxed text-center">{confirm.message}</p>
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => setConfirm(null)}
@@ -859,7 +856,7 @@ export default function SessionDetailClient({
                   isOwn={currentUser?.id === p.user_id}
                   canEdit={currentUser?.id === p.user_id && session.status !== 'closed' && session.status !== 'canceled'}
                   payRecord={payRecords.find(r => r.participant_id === p.id)}
-                  onWithdraw={() => handleWithdraw(p.id)}
+                  onWithdraw={() => showConfirm('退出接龙', <span className="text-center block">确定要退出接龙吗？退出后需重新排队。<br/>若只需改名请点击&nbsp;<svg className="w-3.5 h-3.5 inline-block align-middle mb-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>&nbsp;按键</span>, () => handleWithdraw(p.id))}
                   onToggleLate={() => handleToggleLate(p)}
                   onTogglePayment={() => handleTogglePayment(p.id)}
                   onRename={n => handleRename(p.id, n)} />
@@ -878,7 +875,7 @@ export default function SessionDetailClient({
                       isOwn={currentUser?.id === p.user_id}
                       canEdit={currentUser?.id === p.user_id && session.status !== 'closed' && session.status !== 'canceled'}
                       payRecord={payRecords.find(r => r.participant_id === p.id)}
-                      onWithdraw={() => handleWithdraw(p.id)}
+                      onWithdraw={() => showConfirm('退出接龙', <span className="text-center block">确定要退出接龙吗？退出后需重新排队。<br/>若只需改名请点击&nbsp;<svg className="w-3.5 h-3.5 inline-block align-middle mb-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>&nbsp;按键</span>, () => handleWithdraw(p.id))}
                       onToggleLate={() => handleToggleLate(p)}
                       onTogglePayment={() => handleTogglePayment(p.id)}
                       onRename={n => handleRename(p.id, n)} />
@@ -916,25 +913,34 @@ export default function SessionDetailClient({
               </button>
             </div>
             {!historyCollapsed && (
-              <div className="space-y-0.5 max-h-72 overflow-y-auto">
-                {items.map((item, i) =>
-                  item.kind === 'withdraw' ? (
-                    <div key={item.p.id} className="flex items-center justify-between text-sm py-1">
-                      <span className="text-gray-400 line-through">{item.p.display_name}</span>
-                      {item.p.status === 'late_withdraw'
-                        ? <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
-                        : <span className="text-xs text-gray-400">退出</span>}
+              <div className="max-h-72 overflow-y-auto rounded-lg overflow-hidden">
+                {items.map((item, i) => {
+                  const ts = new Date(item.time)
+                  const label = `${ts.getMonth()+1}/${ts.getDate()} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}`
+                  const bg = i % 2 === 0 ? 'bg-gray-50' : 'bg-gray-100'
+                  return item.kind === 'withdraw' ? (
+                    <div key={item.p.id} className={`px-2 py-1.5 ${bg}`}>
+                      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <span className="text-gray-400 line-through">{item.p.display_name}</span>
+                        {item.p.status === 'late_withdraw'
+                          ? <span className="badge bg-orange-100 text-orange-700">迟退 ⚠️</span>
+                          : <span className="text-xs text-gray-400">退出</span>}
+                      </div>
                     </div>
                   ) : (
-                    <div key={`r-${item.r.id}-${i}`} className="flex items-center gap-1.5 text-sm py-1 text-gray-500 flex-wrap">
-                      <span className="font-medium text-gray-600">{item.nickname}</span>
-                      <span>改名：</span>
-                      <span className="line-through text-gray-400">{item.r.old_name}</span>
-                      <span>→</span>
-                      <span className="text-gray-700">{item.r.new_name}</span>
+                    <div key={`r-${item.r.id}-${i}`} className={`px-2 py-1.5 ${bg}`}>
+                      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                      <p className="text-sm text-gray-600 flex flex-wrap gap-1">
+                        <span className="font-medium">{item.nickname}</span>
+                        <span>改名：</span>
+                        <span className="line-through text-gray-400">{item.r.old_name}</span>
+                        <span>→</span>
+                        <span className="text-gray-700">{item.r.new_name}</span>
+                      </p>
                     </div>
                   )
-                )}
+                })}
               </div>
             )}
           </div>
