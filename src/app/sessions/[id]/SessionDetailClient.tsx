@@ -917,7 +917,7 @@ export default function SessionDetailClient({
                 {items.map((item, i) => {
                   const ts = new Date(item.time)
                   const label = `${ts.getMonth()+1}/${ts.getDate()} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}`
-                  const bg = i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  const bg = i % 2 === 0 ? 'bg-gray-50' : 'bg-gray-100'
                   return item.kind === 'withdraw' ? (
                     <div key={item.p.id} className={`px-2 py-1.5 ${bg}`}>
                       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
