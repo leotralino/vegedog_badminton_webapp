@@ -3,6 +3,7 @@ export const runtime = 'nodejs'  // nodemailer requires Node.js, not Edge
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
+import { buildCourtEmail } from '@/lib/courtEmail'
 
 export async function POST(req: NextRequest) {
   if (process.env.ENABLE_EMAIL !== 'true') return NextResponse.json({ ok: true, skipped: true })
@@ -51,12 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Missing env vars: ${missing}` }, { status: 500 })
   }
 
-  const names = participants.map((p, i) => `${i + 1}. ${p.display_name}`)
-  const WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六']
-  const dow = WEEKDAYS[new Date(session.starts_at).getDay()]
-
-  const subject = `Yi Shen Group ${dow}预约名单`
-  const body = `Lily您好，\n\nYi Shen, Miaoyan Li 和 Xuan Bai 已预订今日${(session as any).court_count}片场地。\n\n以下为本次菜狗群参与人员名单：\n\n${names.join('\n')}\n\n谢谢！\n-菜狗群AI管理员`
+  const { subject, body } = buildCourtEmail(session as any, participants as any)
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',

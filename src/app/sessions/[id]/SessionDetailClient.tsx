@@ -9,6 +9,7 @@ import type {
   PaymentMethod, PaymentRecord, Profile, PaymentMethodType, SessionAdmin,
 } from '@/lib/types'
 import { presetAddress } from '@/lib/locations'
+import { buildCourtEmail } from '@/lib/courtEmail'
 import DateTimePicker from '@/components/DateTimePicker'
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -346,15 +347,7 @@ export default function SessionDetailClient({
   const [emailPreview, setEmailPreview] = useState<{ subject: string; body: string } | null>(null)
 
   function handlePreviewCourtEmail() {
-    const names = joined.map((p, i) => {
-      const name = p.display_name
-      return `${i + 1}. ${name}`
-    })
-    const nameList = names.join('\n')
-    setEmailPreview({
-      subject: `预约名单 — ${session.title}`,
-      body: `您好，\n\n这是我们这次菜狗群正式成员名单：\n\n${nameList}\n\n谢谢！\n-菜狗群AI管理员`,
-    })
+    setEmailPreview(buildCourtEmail(session, joined))
   }
 
   async function doSendCourtEmail() {
