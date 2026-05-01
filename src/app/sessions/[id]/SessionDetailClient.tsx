@@ -259,6 +259,24 @@ export default function SessionDetailClient({
     }
   }
 
+  // ── Withdraw confirm (with late-understaffed warning) ─────────────────
+  function confirmWithdraw(participantId: string, isJoined: boolean) {
+    const isPastDeadline = new Date() > new Date(session.withdraw_deadline)
+    const willBeUnderstaffed = joined.length - 1 < maxParticipants
+    const showLateWarning = isJoined && isPastDeadline && willBeUnderstaffed
+
+    const message = showLateWarning ? (
+      <span className="text-center block space-y-2">
+        <span className="block text-orange-600 font-semibold">⚠️ 您正在截止时间后退出！</span>
+        <span className="block">退出后人数将低于满员上限，若最终人数不足，您仍需分摊场地费用。请寻找后补人员接替您的位置。</span>
+      </span>
+    ) : (
+      <span className="text-center block">确定要退出接龙吗？退出后需重新排队。<br/>若只需改名请点击&nbsp;<svg className="w-3.5 h-3.5 inline-block align-middle mb-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>&nbsp;按键</span>
+    )
+
+    showConfirm('退出接龙', message, () => handleWithdraw(participantId))
+  }
+
   // ── Withdraw ──────────────────────────────────────────────────────────
   async function handleWithdraw(participantId: string) {
     if (!currentUser) return
@@ -856,7 +874,7 @@ export default function SessionDetailClient({
                   isOwn={currentUser?.id === p.user_id}
                   canEdit={currentUser?.id === p.user_id && session.status !== 'closed' && session.status !== 'canceled'}
                   payRecord={payRecords.find(r => r.participant_id === p.id)}
-                  onWithdraw={() => showConfirm('退出接龙', <span className="text-center block">确定要退出接龙吗？退出后需重新排队。<br/>若只需改名请点击&nbsp;<svg className="w-3.5 h-3.5 inline-block align-middle mb-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>&nbsp;按键</span>, () => handleWithdraw(p.id))}
+                  onWithdraw={() => confirmWithdraw(p.id, true)}
                   onToggleLate={() => handleToggleLate(p)}
                   onTogglePayment={() => handleTogglePayment(p.id)}
                   onRename={n => handleRename(p.id, n)} />
@@ -875,7 +893,7 @@ export default function SessionDetailClient({
                       isOwn={currentUser?.id === p.user_id}
                       canEdit={currentUser?.id === p.user_id && session.status !== 'closed' && session.status !== 'canceled'}
                       payRecord={payRecords.find(r => r.participant_id === p.id)}
-                      onWithdraw={() => showConfirm('退出接龙', <span className="text-center block">确定要退出接龙吗？退出后需重新排队。<br/>若只需改名请点击&nbsp;<svg className="w-3.5 h-3.5 inline-block align-middle mb-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>&nbsp;按键</span>, () => handleWithdraw(p.id))}
+                      onWithdraw={() => confirmWithdraw(p.id, false)}
                       onToggleLate={() => handleToggleLate(p)}
                       onTogglePayment={() => handleTogglePayment(p.id)}
                       onRename={n => handleRename(p.id, n)} />

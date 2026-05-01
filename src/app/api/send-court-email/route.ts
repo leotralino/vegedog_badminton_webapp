@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   // Fetch session + joined participants
   const [{ data: session }, { data: participants }] = await Promise.all([
-    supabase.from('sessions').select('title, starts_at').eq('id', sessionId).single(),
+    supabase.from('sessions').select('title, starts_at, court_count').eq('id', sessionId).single(),
     supabase
       .from('participants')
       .select('display_name, profile:profiles!user_id(nickname)')
@@ -52,9 +52,11 @@ export async function POST(req: NextRequest) {
   }
 
   const names = participants.map((p, i) => `${i + 1}. ${p.display_name}`)
+  const WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六']
+  const dow = WEEKDAYS[new Date(session.starts_at).getDay()]
 
-  const subject = `预约名单 — ${session.title}`
-  const body = `您好，\n\n这是我们这次菜狗群正式成员名单：\n\n${names.join('\n')}\n\n谢谢！\n-菜狗群AI管理员`
+  const subject = `Yi Shen Group ${dow}预约名单`
+  const body = `Lily您好，\n\nYi Shen, Miaoyan Li 和 Xuan Bai 已预订今日${(session as any).court_count}片场地。\n\n以下为本次菜狗群参与人员名单：\n\n${names.join('\n')}\n\n谢谢！\n-菜狗群AI管理员`
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
