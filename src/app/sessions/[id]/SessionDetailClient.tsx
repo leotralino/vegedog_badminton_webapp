@@ -263,7 +263,7 @@ export default function SessionDetailClient({
   // ── Withdraw confirm (with late-understaffed warning) ─────────────────
   function confirmWithdraw(participantId: string, isJoined: boolean) {
     const isPastDeadline = new Date() > new Date(session.withdraw_deadline)
-    const willBeUnderstaffed = joined.length - 1 < maxParticipants
+    const willBeUnderstaffed = joined.length - 1 < maxParticipants && waitlist.length === 0
     const showLateWarning = isJoined && isPastDeadline && willBeUnderstaffed
 
     const message = showLateWarning ? (
