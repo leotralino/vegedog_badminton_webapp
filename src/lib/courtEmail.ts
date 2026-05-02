@@ -1,10 +1,13 @@
+import { toZonedTime } from 'date-fns-tz'
+
+const PACIFIC = 'America/Los_Angeles'
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 export function buildCourtEmail(
   session: { starts_at: string; court_count: number },
   participants: { display_name: string }[],
 ): { subject: string; body: string } {
-  const dow = WEEKDAYS[new Date(session.starts_at).getDay()]
+  const dow = WEEKDAYS[toZonedTime(new Date(session.starts_at), PACIFIC).getDay()]
   const names = participants.map((p, i) => `${i + 1}. ${p.display_name}`).join('\n')
   return {
     subject: `Yi Shen Group ${dow}预约名单`,
