@@ -943,7 +943,7 @@ export default function SessionDetailClient({
                       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
                       <div className="flex items-center gap-1.5 text-sm">
                         <span className="text-gray-700">{item.p.display_name}</span>
-                        <span className="text-xs text-green-600">加入接龙</span>
+                        <span className="text-xs text-gray-400">加入接龙</span>
                       </div>
                     </div>
                   ) : item.kind === 'withdraw' ? (
