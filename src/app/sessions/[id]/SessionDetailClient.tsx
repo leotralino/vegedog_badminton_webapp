@@ -905,19 +905,21 @@ export default function SessionDetailClient({
         )}
       </div>
 
-      {/* 改动记录 — withdrawals + renames unified timeline */}
-      {(withdrawn.length > 0 || renames.length > 0) && (() => {
+      {/* 改动记录 — joins + withdrawals + renames unified timeline */}
+      {(participants.length > 0 || withdrawn.length > 0 || renames.length > 0) && (() => {
         type HistoryItem =
+          | { kind: 'join';     p: ParticipantWithProfile; time: string }
           | { kind: 'withdraw'; p: ParticipantWithProfile; time: string }
           | { kind: 'rename';   r: ParticipantRename;      nickname: string; time: string }
         const items: HistoryItem[] = [
+          ...participants.map(p => ({ kind: 'join' as const, p, time: p.joined_at ?? '' })),
           ...withdrawn.map(p => ({ kind: 'withdraw' as const, p, time: p.withdrew_at ?? '' })),
           ...renames.map(r => ({
             kind: 'rename' as const, r,
             nickname: participants.find(p => p.user_id === r.user_id)?.profile?.nickname ?? '用户',
             time: r.created_at,
           })),
-        ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+        ].filter(i => i.time).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
         return (
           <div className="card">
             <div className="flex items-center justify-between mb-2">
@@ -936,7 +938,15 @@ export default function SessionDetailClient({
                   const ts = new Date(item.time)
                   const label = `${ts.getMonth()+1}/${ts.getDate()} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}`
                   const bg = i % 2 === 0 ? 'bg-gray-50' : 'bg-gray-100'
-                  return item.kind === 'withdraw' ? (
+                  return item.kind === 'join' ? (
+                    <div key={`j-${item.p.id}`} className={`px-2 py-1.5 ${bg}`}>
+                      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <span className="text-gray-700">{item.p.display_name}</span>
+                        <span className="text-xs text-green-600">加入接龙</span>
+                      </div>
+                    </div>
+                  ) : item.kind === 'withdraw' ? (
                     <div key={item.p.id} className={`px-2 py-1.5 ${bg}`}>
                       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
                       <div className="flex items-center gap-1.5 text-sm">
