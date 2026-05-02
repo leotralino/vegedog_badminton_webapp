@@ -367,12 +367,19 @@ export default function SessionDetailClient({
   // ── Toggle stayed late ────────────────────────────────────────────────
   async function handleToggleLate(p: Participant) {
     const newVal = !p.stayed_late
-    setParticipants(prev => prev.map(pt => pt.id === p.id ? { ...pt, stayed_late: newVal } : pt))
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from('participants') as any)
-      .update({ stayed_late: newVal })
-      .eq('id', p.id)
-    if (error) { showToast(error.message, false); refreshParticipants() }
+    const action = newVal ? '加时' : '取消加时'
+    showConfirm(
+      `确定${action}？`,
+      `确定 ${p.display_name} 晚场加时吗？`,
+      async () => {
+        setParticipants(prev => prev.map(pt => pt.id === p.id ? { ...pt, stayed_late: newVal } : pt))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase.from('participants') as any)
+          .update({ stayed_late: newVal })
+          .eq('id', p.id)
+        if (error) { showToast(error.message, false); refreshParticipants() }
+      }
+    )
   }
 
   // ── Admin management ─────────────────────────────────────────────────────
