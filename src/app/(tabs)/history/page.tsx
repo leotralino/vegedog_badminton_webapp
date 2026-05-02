@@ -6,13 +6,10 @@ export const revalidate = 0
 
 async function getHistory() {
   const supabase = await createClient()
-  // 历史: sessions that started more than 3h ago
-  const cutoff = new Date(Date.now() - 3 * 3600 * 1000).toISOString()
-
   const { data: sessions } = await supabase
     .from('sessions')
     .select(`*, initiator:profiles!initiator_id(id, nickname, avatar_url)`)
-    .or(`starts_at.lt.${cutoff},status.eq.closed`)
+    .eq('status', 'closed')
     .order('starts_at', { ascending: false })
     .limit(30)
 

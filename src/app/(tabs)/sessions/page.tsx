@@ -7,15 +7,12 @@ export const revalidate = 0
 
 async function getSessions() {
   const supabase = await createClient()
-  // 接龙: sessions that started less than 3h ago, or haven't started yet
-  const cutoff = new Date(Date.now() - 3 * 3600 * 1000).toISOString()
 
   const { data: sessions } = await supabase
     .from('sessions')
     .select(`*, initiator:profiles!initiator_id(id, nickname, avatar_url)`)
     .neq('status', 'canceled')
     .neq('status', 'closed')
-    .gte('starts_at', cutoff)
     .order('starts_at', { ascending: true })
 
   const ids = (sessions ?? []).map((s: { id: string }) => s.id)
