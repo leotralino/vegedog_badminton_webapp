@@ -420,6 +420,16 @@ function StatsTab() {
 
   const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
 
+  const monthLabels: string[] = weeks.map(() => '')
+  let lastLabelWi = -4
+  weeks.forEach((week, wi) => {
+    const newMonth = wi === 0 || week[0].getMonth() !== weeks[wi - 1][0].getMonth()
+    if (newMonth && wi - lastLabelWi >= 3) {
+      monthLabels[wi] = week[0].toLocaleString('en-US', { month: 'short' })
+      lastLabelWi = wi
+    }
+  })
+
   return (
     <div className="space-y-3">
       <div className="card">
@@ -448,14 +458,11 @@ function StatsTab() {
             </div>
             <div>
               <div className="flex gap-[3px] mb-1">
-                {weeks.map((week, wi) => {
-                  const newMonth = wi === 0 || week[0].getMonth() !== weeks[wi - 1][0].getMonth()
-                  return (
-                    <div key={wi} className="w-[10px] text-[9px] text-gray-400 overflow-visible whitespace-nowrap">
-                      {newMonth ? week[0].toLocaleString('en-US', { month: 'short' }) : ''}
-                    </div>
-                  )
-                })}
+                {weeks.map((week, wi) => (
+                  <div key={wi} className="w-[10px] text-[9px] text-gray-400 overflow-visible whitespace-nowrap">
+                    {monthLabels[wi]}
+                  </div>
+                ))}
               </div>
               <div className="flex gap-[3px]">
                 {weeks.map((week, wi) => (
