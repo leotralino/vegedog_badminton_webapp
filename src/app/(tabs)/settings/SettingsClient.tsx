@@ -421,12 +421,14 @@ function StatsTab() {
   const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
 
   const monthLabels: string[] = weeks.map(() => '')
-  let lastLabelWi = -4
   weeks.forEach((week, wi) => {
     const newMonth = wi === 0 || week[0].getMonth() !== weeks[wi - 1][0].getMonth()
-    if (newMonth && wi - lastLabelWi >= 3) {
-      monthLabels[wi] = week[0].toLocaleString('en-US', { month: 'short' })
-      lastLabelWi = wi
+    if (newMonth) {
+      const nextBoundary = weeks.findIndex((w, i) => i > wi && w[0].getMonth() !== week[0].getMonth())
+      const roomAhead = nextBoundary === -1 ? weeks.length - wi : nextBoundary - wi
+      if (roomAhead >= 3) {
+        monthLabels[wi] = week[0].toLocaleString('en-US', { month: 'short' })
+      }
     }
   })
 
