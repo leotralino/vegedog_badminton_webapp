@@ -433,14 +433,14 @@ export default function NewSessionPage() {
           </div>
         </div>
 
-        <label className="flex items-center gap-2 px-1 cursor-pointer select-none">
+        <label className="card flex items-center justify-between cursor-pointer select-none">
+          <span className="text-sm font-medium text-gray-700">通知关注我的人</span>
           <input
             type="checkbox"
             checked={notifyFollowers}
             onChange={e => setNotifyFollowers(e.target.checked)}
             className="w-4 h-4 rounded accent-brand-600"
           />
-          <span className="text-sm text-gray-700">通知关注我的人</span>
         </label>
 
         {error && (
