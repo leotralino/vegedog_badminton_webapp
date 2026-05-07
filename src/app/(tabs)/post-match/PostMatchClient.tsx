@@ -75,14 +75,13 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
         return
       }
       const filled: string[] = []
-      setForm(f => {
-        const next = { ...f }
-        if (data.name && !f.name.trim()) { next.name = data.name; filled.push('店名') }
-        if (data.address && !f.address.trim()) { next.address = data.address; filled.push('地址') }
-        if (data.hours && !f.hours.trim()) { next.hours = data.hours; filled.push('营业时间') }
-        return next
-      })
+      const updates: Partial<typeof EMPTY_FORM> = {}
+      if (data.name    && !form.name.trim())    { updates.name    = data.name;    filled.push('店名') }
+      if (data.address && !form.address.trim()) { updates.address = data.address; filled.push('地址') }
+      if (data.hours   && !form.hours.trim())   { updates.hours   = data.hours;   filled.push('营业时间') }
+
       if (filled.length > 0) {
+        setForm(f => ({ ...f, ...updates }))
         setParseMsg({ text: `已自动填入：${filled.join('、')}`, ok: true })
       } else if (!data.name && !data.address && !data.hours) {
         setParseMsg({ text: '未能识别内容，请手动填写', ok: false })
