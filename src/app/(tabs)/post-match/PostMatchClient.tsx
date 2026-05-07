@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { RestaurantWithDetails, RestaurantRecommendation } from '@/lib/types'
 
 const GROUP_SIZE_OPTIONS = ['小桌(≤6人)', '大桌(7-12人)', '包间(12+人)']
+const COMMON_CUISINES = ['中餐', '日料', '韩餐', '美式', '墨西哥', '越南菜', '泰餐', '其他']
 
 const EMPTY_FORM = {
   name: '',
@@ -32,7 +33,21 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
   const [dishes, setDishes] = useState<string[]>([])
   const [newDish, setNewDish] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [parsing, setParsing] = useState(false)
+  const [parseMsg, setParseMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+
+  const cuisineOptions = useMemo(() => {
+    const seen = new Set(COMMON_CUISINES)
+    const extras: string[] = []
+    for (const r of restaurants) {
+      if (r.cuisine && !seen.has(r.cuisine)) {
+        seen.add(r.cuisine)
+        extras.push(r.cuisine)
+      }
+    }
+    return [...COMMON_CUISINES, ...extras]
+  }, [restaurants])
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok })
@@ -43,18 +58,42 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
     setForm(EMPTY_FORM)
     setDishes([])
     setNewDish('')
+    setParseMsg(null)
     setShowModal(true)
   }
 
-  function handleGMapsChange(url: string) {
-    let name = form.name
-    if (!name.trim()) {
-      try {
-        const match = url.match(/\/place\/([^/@?&#]+)/)
-        if (match) name = decodeURIComponent(match[1].replace(/\+/g, ' '))
-      } catch {}
+  async function handleParseGMaps() {
+    const url = form.google_maps_url.trim()
+    if (!url) return
+    setParsing(true)
+    setParseMsg(null)
+    try {
+      const res = await fetch(`/api/parse-gmaps?url=${encodeURIComponent(url)}`)
+      const data = await res.json()
+      if (data.error) {
+        setParseMsg({ text: '解析失败，请手动填写', ok: false })
+        return
+      }
+      const filled: string[] = []
+      setForm(f => {
+        const next = { ...f }
+        if (data.name && !f.name.trim()) { next.name = data.name; filled.push('店名') }
+        if (data.address && !f.address.trim()) { next.address = data.address; filled.push('地址') }
+        if (data.hours && !f.hours.trim()) { next.hours = data.hours; filled.push('营业时间') }
+        return next
+      })
+      if (filled.length > 0) {
+        setParseMsg({ text: `已自动填入：${filled.join('、')}`, ok: true })
+      } else if (!data.name && !data.address && !data.hours) {
+        setParseMsg({ text: '未能识别内容，请手动填写', ok: false })
+      } else {
+        setParseMsg({ text: '字段已有内容，未覆盖', ok: true })
+      }
+    } catch {
+      setParseMsg({ text: '解析失败，请手动填写', ok: false })
+    } finally {
+      setParsing(false)
     }
-    setForm(prev => ({ ...prev, google_maps_url: url, name }))
   }
 
   function addDish() {
@@ -338,15 +377,30 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
               {/* Google Maps import */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Google Maps 链接 <span className="text-gray-400 font-normal">（可选，自动识别店名）</span>
+                  Google Maps 链接 <span className="text-gray-400 font-normal">（可选）</span>
                 </label>
-                <input
-                  type="url"
-                  placeholder="粘贴 Google Maps 链接..."
-                  value={form.google_maps_url}
-                  onChange={e => handleGMapsChange(e.target.value)}
-                  className="input text-sm"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="粘贴 Google Maps 链接..."
+                    value={form.google_maps_url}
+                    onChange={e => { setParseMsg(null); setForm(f => ({ ...f, google_maps_url: e.target.value })) }}
+                    className="input flex-1 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleParseGMaps}
+                    disabled={!form.google_maps_url.trim() || parsing}
+                    className="shrink-0 px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-medium disabled:opacity-40 active:bg-gray-50 transition-colors"
+                  >
+                    {parsing ? '解析中…' : '解析'}
+                  </button>
+                </div>
+                {parseMsg && (
+                  <p className={`text-xs mt-1.5 ${parseMsg.ok ? 'text-brand-600' : 'text-red-500'}`}>
+                    {parseMsg.text}
+                  </p>
+                )}
               </div>
 
               {/* Name */}
@@ -363,28 +417,44 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
                 />
               </div>
 
-              {/* Cuisine + Distance */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">菜系</label>
-                  <input
-                    type="text"
-                    placeholder="中餐 / 日料 / 美式..."
-                    value={form.cuisine}
-                    onChange={e => setForm(f => ({ ...f, cuisine: e.target.value }))}
-                    className="input text-sm"
-                  />
+              {/* Cuisine */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">菜系</label>
+                <input
+                  type="text"
+                  placeholder="输入或从下方选择..."
+                  value={form.cuisine}
+                  onChange={e => setForm(f => ({ ...f, cuisine: e.target.value }))}
+                  className="input text-sm"
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {cuisineOptions.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, cuisine: f.cuisine === c ? '' : c }))}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        form.cuisine === c
+                          ? 'border-brand-400 bg-brand-50 text-brand-700'
+                          : 'border-gray-200 bg-white text-gray-500 active:bg-gray-50'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">距离</label>
-                  <input
-                    type="text"
-                    placeholder="0.3 mi / 5分钟车程"
-                    value={form.distance}
-                    onChange={e => setForm(f => ({ ...f, distance: e.target.value }))}
-                    className="input text-sm"
-                  />
-                </div>
+              </div>
+
+              {/* Distance */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">距离</label>
+                <input
+                  type="text"
+                  placeholder="0.3 mi / 5分钟车程"
+                  value={form.distance}
+                  onChange={e => setForm(f => ({ ...f, distance: e.target.value }))}
+                  className="input text-sm"
+                />
               </div>
 
               {/* Address */}
