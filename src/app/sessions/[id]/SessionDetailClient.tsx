@@ -840,10 +840,17 @@ export default function SessionDetailClient({
 
       {/* Participant list */}
       <div className="card space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">
-            已报名（{joined.length}/{maxParticipants}）
-          </h2>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="font-semibold text-gray-900">
+              已报名（{joined.length}/{maxParticipants}）
+            </h2>
+            {session.status === 'locked' && payRecords.some(r => joined.some(p => p.id === r.participant_id)) && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                已付款（{payRecords.filter(r => r.status === 'paid' && joined.some(p => p.id === r.participant_id)).length}/{joined.length}）
+              </p>
+            )}
+          </div>
           {/* Participant search — locked sessions, all logged-in users */}
           {currentUser && session.status === 'locked' && (
             <button
@@ -1195,6 +1202,15 @@ function ParticipantRow({
                 : 'bg-pink-100 text-pink-600 hover:bg-pink-200'}`}>
             {payRecord?.status === 'paid' ? '已付 ✓' : '❗标记已支付'}
           </button>
+        )}
+
+        {/* Admin read-only payment badge for others */}
+        {isAdmin && !isOwn && allowActions && payRecord && (
+          <span className={`text-xs px-2 py-1 rounded-lg font-medium ${
+            payRecord.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+          }`}>
+            {payRecord.status === 'paid' ? '已付 ✓' : '未支付'}
+          </span>
         )}
 
         {/* Read-only payment badge — when actions not available but record exists */}
@@ -1555,24 +1571,6 @@ function PaymentSection({
         </div>
       )}
 
-      {/* Payment records */}
-      {paymentRecords.length > 0 && (
-        <div className="space-y-2 pt-2 border-t border-gray-100">
-          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">付款记录</p>
-          {participants.map(p => {
-            const record = paymentRecords.find(r => r.participant_id === p.id)
-            if (!record) return null
-            return (
-              <div key={p.id} className="flex items-center justify-between text-sm">
-                <span className="text-gray-700">{p.display_name}</span>
-                <span className={`badge ${PAY_CLASS[record.status]}`}>
-                  {PAY_LABEL[record.status]}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
