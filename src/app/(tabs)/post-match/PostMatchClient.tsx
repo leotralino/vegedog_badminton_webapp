@@ -20,6 +20,14 @@ const EMPTY_FORM = {
   group_size: '',
 }
 
+const RESTAURANT_SELECT = `
+  *,
+  adder:profiles!added_by(id, nickname, avatar_url),
+  dishes:restaurant_dishes(id, name, added_by),
+  recommendations:restaurant_recommendations(id, user_id, recommended),
+  tags:restaurant_tags(id, name, added_by)
+`
+
 // ── Open-now helpers ──────────────────────────────────────────────────────────
 
 function parseMinutes(s: string): number {
@@ -69,9 +77,10 @@ interface CardProps {
   r: RestaurantWithDetails
   currentUserId: string
   onRecommend: (id: string, val: boolean) => void
+  onEdit: (r: RestaurantWithDetails) => void
 }
 
-function RestaurantCard({ r, currentUserId, onRecommend }: CardProps) {
+function RestaurantCard({ r, currentUserId, onRecommend, onEdit }: CardProps) {
   const thumbsUp = r.recommendations.filter(rec => rec.recommended).length
   const thumbsDown = r.recommendations.filter(rec => !rec.recommended).length
   const myRec = r.recommendations.find(rec => rec.user_id === currentUserId)
@@ -152,6 +161,7 @@ function RestaurantCard({ r, currentUserId, onRecommend }: CardProps) {
         )}
       </div>
 
+      {/* System tags */}
       {(r.has_wait || r.accepts_reservation) && (
         <div className="flex flex-wrap gap-1.5">
           {r.has_wait && (
@@ -164,6 +174,20 @@ function RestaurantCard({ r, currentUserId, onRecommend }: CardProps) {
               可以预约
             </span>
           )}
+        </div>
+      )}
+
+      {/* Custom tags */}
+      {r.tags?.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {r.tags.map(t => (
+            <span
+              key={t.id}
+              className="text-xs bg-violet-50 text-violet-700 border border-violet-100 px-2 py-0.5 rounded-full"
+            >
+              {t.name}
+            </span>
+          ))}
         </div>
       )}
 
@@ -183,20 +207,36 @@ function RestaurantCard({ r, currentUserId, onRecommend }: CardProps) {
         </div>
       )}
 
-      {r.adder && (
-        <div className="pt-2 border-t border-gray-100 flex items-center gap-1.5">
-          {r.adder.avatar_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={r.adder.avatar_url} alt="" className="w-4 h-4 rounded-full" />
+      {/* Footer row: adder + edit button */}
+      <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {r.adder && (
+            <>
+              {r.adder.avatar_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={r.adder.avatar_url} alt="" className="w-4 h-4 rounded-full shrink-0" />
+              )}
+              <span className="text-xs text-gray-400 truncate">{r.adder.nickname} 添加</span>
+            </>
           )}
-          <span className="text-xs text-gray-400">{r.adder.nickname} 添加</span>
         </div>
-      )}
+        {currentUserId && (
+          <button
+            onClick={() => onEdit(r)}
+            className="text-xs text-gray-400 hover:text-brand-600 transition-colors shrink-0 flex items-center gap-0.5"
+          >
+            <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z"/>
+            </svg>
+            补充/编辑
+          </button>
+        )}
+      </div>
     </div>
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Filter helpers ────────────────────────────────────────────────────────────
 
 interface AppliedFilters {
   cuisine: string
@@ -215,6 +255,8 @@ function applyFilters(list: RestaurantWithDetails[], f: AppliedFilters) {
   })
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 interface Props {
   initialRestaurants: RestaurantWithDetails[]
   currentUserId: string
@@ -223,19 +265,33 @@ interface Props {
 export default function PostMatchClient({ initialRestaurants, currentUserId }: Props) {
   const supabase = createClient()
   const [restaurants, setRestaurants] = useState<RestaurantWithDetails[]>(initialRestaurants)
+
+  // Add modal
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [dishes, setDishes] = useState<string[]>([])
   const [newDish, setNewDish] = useState('')
+  const [addTags, setAddTags] = useState<string[]>([])
+  const [newAddTag, setNewAddTag] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [parsing, setParsing] = useState(false)
   const [parseMsg, setParseMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [parseExtra, setParseExtra] = useState<{
     rating?: number; userRatingCount?: number; priceLevel?: string; phone?: string; website?: string
   } | null>(null)
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
-  // Filter panel state
+  // Edit modal
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const editingRestaurant = editingId ? (restaurants.find(r => r.id === editingId) ?? null) : null
+  const [editForm, setEditForm] = useState(EMPTY_FORM)
+  const [editNewTag, setEditNewTag] = useState('')
+  const [editNewTags, setEditNewTags] = useState<string[]>([])
+  const [editSubmitting, setEditSubmitting] = useState(false)
+  const [editParsing, setEditParsing] = useState(false)
+  const [editParseMsg, setEditParseMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  // Filter / random
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [rfCuisine, setRfCuisine] = useState('')
   const [rfGroupSize, setRfGroupSize] = useState('')
@@ -243,6 +299,8 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
   const [rfOpenNow, setRfOpenNow] = useState(false)
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters | null>(null)
   const [pickedId, setPickedId] = useState<string | null>(null)
+
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
   const displayedRestaurants = useMemo(
     () => appliedFilters ? applyFilters(restaurants, appliedFilters) : restaurants,
@@ -273,44 +331,11 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
     setTimeout(() => setToast(null), 3000)
   }
 
-  function openModal() {
-    setForm(EMPTY_FORM); setDishes([]); setNewDish(''); setParseMsg(null); setParseExtra(null)
-    setShowModal(true)
-  }
+  // ── Parse Google Maps (shared logic) ──────────────────────────────────────
 
-  function getDraftFilters(): AppliedFilters {
-    return { cuisine: rfCuisine, groupSize: rfGroupSize, reserveOnly: rfReserveOnly, openNow: rfOpenNow }
-  }
-
-  function handleFilter() {
-    const f = getDraftFilters()
-    setAppliedFilters(f)
-    setPickedId(null)
-    setShowFilterPanel(false)
-    if (!applyFilters(restaurants, f).length) showToast('没有符合条件的餐厅', false)
-  }
-
-  function handleRandom() {
-    const f = getDraftFilters()
-    setAppliedFilters(f)
-    setShowFilterPanel(false)
-    const candidates = applyFilters(restaurants, f)
-    if (!candidates.length) { showToast('没有符合条件的餐厅', false); return }
-    setPickedId(candidates[Math.floor(Math.random() * candidates.length)].id)
-  }
-
-  function handleReRandom() {
-    if (!displayedRestaurants.length) return
-    setPickedId(displayedRestaurants[Math.floor(Math.random() * displayedRestaurants.length)].id)
-  }
-
-  function clearFilters() {
-    setAppliedFilters(null)
-    setPickedId(null)
-    setRfCuisine('')
-    setRfGroupSize('')
-    setRfReserveOnly(false)
-    setRfOpenNow(false)
+  async function fetchGMaps(url: string) {
+    const res = await fetch(`/api/parse-gmaps?url=${encodeURIComponent(url)}`)
+    return res.json()
   }
 
   async function handleParseGMaps() {
@@ -318,8 +343,7 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
     if (!url) return
     setParsing(true); setParseMsg(null)
     try {
-      const res = await fetch(`/api/parse-gmaps?url=${encodeURIComponent(url)}`)
-      const data = await res.json()
+      const data = await fetchGMaps(url)
       if (data.error) { setParseMsg({ text: '解析失败，请手动填写', ok: false }); return }
       const filled: string[] = []
       const updates: Partial<typeof EMPTY_FORM> = {}
@@ -330,7 +354,7 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
       if (filled.length > 0) {
         setForm(f => ({ ...f, ...updates }))
         setParseMsg({ text: `已自动填入：${filled.join('、')}`, ok: true })
-      } else if (!data.name && !data.address && !data.hours && !data.cuisine) {
+      } else if (!data.name && !data.address) {
         setParseMsg({ text: '未能识别内容，请手动填写', ok: false })
       } else {
         setParseMsg({ text: '字段已有内容，未覆盖', ok: true })
@@ -345,10 +369,49 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
     }
   }
 
+  async function handleEditParseGMaps() {
+    const url = editForm.google_maps_url.trim()
+    if (!url) return
+    setEditParsing(true); setEditParseMsg(null)
+    try {
+      const data = await fetchGMaps(url)
+      if (data.error) { setEditParseMsg({ text: '解析失败', ok: false }); return }
+      const filled: string[] = []
+      const updates: Partial<typeof EMPTY_FORM> = {}
+      if (data.name)    { updates.name    = data.name;    filled.push('店名') }
+      if (data.address) { updates.address = data.address; filled.push('地址') }
+      if (data.hours)   { updates.hours   = data.hours;   filled.push('营业时间') }
+      if (data.cuisine) { updates.cuisine = data.cuisine; filled.push('菜系') }
+      if (filled.length > 0) {
+        setEditForm(f => ({ ...f, ...updates }))
+        setEditParseMsg({ text: `已填入：${filled.join('、')}`, ok: true })
+      } else {
+        setEditParseMsg({ text: '未能识别内容', ok: false })
+      }
+    } catch {
+      setEditParseMsg({ text: '解析失败', ok: false })
+    } finally {
+      setEditParsing(false)
+    }
+  }
+
+  // ── Add modal ─────────────────────────────────────────────────────────────
+
+  function openModal() {
+    setForm(EMPTY_FORM); setDishes([]); setNewDish(''); setAddTags([]); setNewAddTag('')
+    setParseMsg(null); setParseExtra(null); setShowModal(true)
+  }
+
   function addDish() {
     const d = newDish.trim()
     if (!d || dishes.includes(d)) return
     setDishes(prev => [...prev, d]); setNewDish('')
+  }
+
+  function addTagToList() {
+    const t = newAddTag.trim()
+    if (!t || addTags.includes(t)) return
+    setAddTags(prev => [...prev, t]); setNewAddTag('')
   }
 
   async function handleSubmit() {
@@ -372,16 +435,76 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
           dishes.map(d => ({ restaurant_id: restaurant.id, name: d, added_by: currentUserId }))
         )
       }
+      if (addTags.length > 0) {
+        await supabase.from('restaurant_tags').insert(
+          addTags.map(t => ({ restaurant_id: restaurant.id, name: t, added_by: currentUserId }))
+        )
+      }
       const { data: full } = await supabase
-        .from('restaurants')
-        .select(`*, adder:profiles!added_by(id, nickname, avatar_url), dishes:restaurant_dishes(id, name, added_by), recommendations:restaurant_recommendations(id, user_id, recommended)`)
-        .eq('id', restaurant.id).single()
+        .from('restaurants').select(RESTAURANT_SELECT).eq('id', restaurant.id).single()
       if (full) setRestaurants(prev => [full as unknown as RestaurantWithDetails, ...prev])
       setShowModal(false); showToast('餐厅已添加！')
     } finally {
       setSubmitting(false)
     }
   }
+
+  // ── Edit modal ────────────────────────────────────────────────────────────
+
+  function openEditModal(r: RestaurantWithDetails) {
+    setEditingId(r.id)
+    setEditForm({
+      name: r.name, cuisine: r.cuisine ?? '', distance: r.distance ?? '',
+      address: r.address ?? '', hours: r.hours ?? '', yelp_url: r.yelp_url ?? '',
+      google_maps_url: r.google_maps_url ?? '', has_wait: r.has_wait,
+      accepts_reservation: r.accepts_reservation, group_size: r.group_size ?? '',
+    })
+    setEditNewTag(''); setEditNewTags([]); setEditParseMsg(null); setShowEditModal(true)
+  }
+
+  function addEditTag() {
+    const t = editNewTag.trim()
+    if (!t || editNewTags.includes(t)) return
+    if (editingRestaurant?.tags.some(tag => tag.name === t)) return
+    setEditNewTags(prev => [...prev, t]); setEditNewTag('')
+  }
+
+  async function handleEditSubmit() {
+    if (!editingRestaurant || !editForm.name.trim()) return
+    setEditSubmitting(true)
+    try {
+      const { error } = await supabase
+        .from('restaurants')
+        .update({
+          name: editForm.name.trim(), cuisine: editForm.cuisine.trim() || null,
+          distance: editForm.distance.trim() || null, address: editForm.address.trim() || null,
+          hours: editForm.hours.trim() || null, yelp_url: editForm.yelp_url.trim() || null,
+          google_maps_url: editForm.google_maps_url.trim() || null,
+          has_wait: editForm.has_wait, accepts_reservation: editForm.accepts_reservation,
+          group_size: editForm.group_size || null,
+        })
+        .eq('id', editingRestaurant.id)
+      if (error) { showToast('保存失败，请重试', false); return }
+      if (editNewTags.length > 0) {
+        await supabase.from('restaurant_tags').upsert(
+          editNewTags.map(t => ({ restaurant_id: editingRestaurant.id, name: t, added_by: currentUserId })),
+          { onConflict: 'restaurant_id,name', ignoreDuplicates: true }
+        )
+      }
+      const { data: full } = await supabase
+        .from('restaurants').select(RESTAURANT_SELECT).eq('id', editingRestaurant.id).single()
+      if (full) {
+        setRestaurants(prev => prev.map(r =>
+          r.id === editingRestaurant.id ? full as unknown as RestaurantWithDetails : r
+        ))
+      }
+      setShowEditModal(false); showToast('信息已更新！')
+    } finally {
+      setEditSubmitting(false)
+    }
+  }
+
+  // ── Recommend ─────────────────────────────────────────────────────────────
 
   async function handleRecommend(restaurantId: string, value: boolean) {
     const r = restaurants.find(r => r.id === restaurantId)
@@ -395,9 +518,8 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
         .eq('restaurant_id', restaurantId).eq('user_id', currentUserId)
     } else {
       const newRec: RestaurantRecommendation = {
-        id: existing?.id ?? crypto.randomUUID(),
-        restaurant_id: restaurantId, user_id: currentUserId,
-        recommended: value, created_at: new Date().toISOString(),
+        id: existing?.id ?? crypto.randomUUID(), restaurant_id: restaurantId,
+        user_id: currentUserId, recommended: value, created_at: new Date().toISOString(),
       }
       setRestaurants(prev => prev.map(r =>
         r.id !== restaurantId ? r : {
@@ -414,6 +536,36 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
     }
   }
 
+  // ── Filter / random ───────────────────────────────────────────────────────
+
+  function getDraftFilters(): AppliedFilters {
+    return { cuisine: rfCuisine, groupSize: rfGroupSize, reserveOnly: rfReserveOnly, openNow: rfOpenNow }
+  }
+
+  function handleFilter() {
+    const f = getDraftFilters()
+    setAppliedFilters(f); setPickedId(null); setShowFilterPanel(false)
+    if (!applyFilters(restaurants, f).length) showToast('没有符合条件的餐厅', false)
+  }
+
+  function handleRandom() {
+    const f = getDraftFilters()
+    setAppliedFilters(f); setShowFilterPanel(false)
+    const candidates = applyFilters(restaurants, f)
+    if (!candidates.length) { showToast('没有符合条件的餐厅', false); return }
+    setPickedId(candidates[Math.floor(Math.random() * candidates.length)].id)
+  }
+
+  function handleReRandom() {
+    if (!displayedRestaurants.length) return
+    setPickedId(displayedRestaurants[Math.floor(Math.random() * displayedRestaurants.length)].id)
+  }
+
+  function clearFilters() {
+    setAppliedFilters(null); setPickedId(null)
+    setRfCuisine(''); setRfGroupSize(''); setRfReserveOnly(false); setRfOpenNow(false)
+  }
+
   const chipCls = (active: boolean) =>
     `text-xs px-2.5 py-1 rounded-full border transition-colors ${
       active ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-500 active:bg-gray-50'
@@ -427,6 +579,87 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
   const hasActiveFilters = appliedFilters && (
     appliedFilters.cuisine || appliedFilters.groupSize || appliedFilters.reserveOnly || appliedFilters.openNow
   )
+
+  // ── Shared form sections ──────────────────────────────────────────────────
+
+  function CuisineField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    return (
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1.5">菜系</label>
+        <input
+          type="text"
+          placeholder="输入或从下方选择..."
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="input text-sm"
+        />
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {cuisineOptions.map(c => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onChange(value === c ? '' : c)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                value === c ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-500 active:bg-gray-50'
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  function TagsField({
+    existingTags, newTags, newInput,
+    onNewInput, onAdd, onRemove,
+  }: {
+    existingTags: { id: string; name: string }[]
+    newTags: string[]
+    newInput: string
+    onNewInput: (v: string) => void
+    onAdd: () => void
+    onRemove: (t: string) => void
+  }) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-gray-500">自定义标签</p>
+        {existingTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {existingTags.map(t => (
+              <span key={t.id} className="text-xs bg-violet-50 text-violet-700 border border-violet-100 px-2.5 py-0.5 rounded-full">
+                {t.name}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="输入标签，按回车添加"
+            value={newInput}
+            onChange={e => onNewInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onAdd() } }}
+            className="input flex-1 text-sm"
+          />
+          <button type="button" onClick={onAdd} className="px-4 py-2 bg-violet-600 text-white text-sm rounded-xl active:bg-violet-700 shrink-0">
+            添加
+          </button>
+        </div>
+        {newTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {newTags.map(t => (
+              <span key={t} className="flex items-center gap-1 text-xs bg-violet-50 text-violet-700 border border-violet-100 px-2.5 py-0.5 rounded-full">
+                {t}
+                <button onClick={() => onRemove(t)} className="text-violet-400 hover:text-violet-600 leading-none ml-0.5">×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
@@ -463,33 +696,26 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
       {showFilterPanel && (
         <div className="card space-y-3 border-amber-200 bg-amber-50/30">
           <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">筛选条件</p>
-
           {existingCuisines.length > 0 && (
             <div>
               <p className="text-xs text-gray-500 mb-1.5">口味</p>
               <div className="flex flex-wrap gap-1.5">
                 <button onClick={() => setRfCuisine('')} className={chipCls(rfCuisine === '')}>不限</button>
                 {existingCuisines.map(c => (
-                  <button key={c} onClick={() => setRfCuisine(rfCuisine === c ? '' : c)} className={chipCls(rfCuisine === c)}>
-                    {c}
-                  </button>
+                  <button key={c} onClick={() => setRfCuisine(rfCuisine === c ? '' : c)} className={chipCls(rfCuisine === c)}>{c}</button>
                 ))}
               </div>
             </div>
           )}
-
           <div>
             <p className="text-xs text-gray-500 mb-1.5">适合人数</p>
             <div className="flex flex-wrap gap-1.5">
               <button onClick={() => setRfGroupSize('')} className={chipCls(rfGroupSize === '')}>不限</button>
               {GROUP_SIZE_OPTIONS.map(g => (
-                <button key={g} onClick={() => setRfGroupSize(rfGroupSize === g ? '' : g)} className={chipCls(rfGroupSize === g)}>
-                  {g}
-                </button>
+                <button key={g} onClick={() => setRfGroupSize(rfGroupSize === g ? '' : g)} className={chipCls(rfGroupSize === g)}>{g}</button>
               ))}
             </div>
           </div>
-
           <div className="flex gap-2">
             <button onClick={() => setRfReserveOnly(p => !p)} className={toggleCls(rfReserveOnly)}>
               {rfReserveOnly ? '✓' : '○'} 可以预约
@@ -498,35 +724,24 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
               {rfOpenNow ? '✓' : '○'} 当前营业
             </button>
           </div>
-
           <div className="flex gap-2">
-            <button
-              onClick={handleFilter}
-              className="flex-1 py-2.5 rounded-xl border border-amber-400 bg-white text-amber-600 font-semibold text-sm active:bg-amber-50 transition-colors"
-            >
+            <button onClick={handleFilter} className="flex-1 py-2.5 rounded-xl border border-amber-400 bg-white text-amber-600 font-semibold text-sm active:bg-amber-50 transition-colors">
               筛选确认
             </button>
-            <button
-              onClick={handleRandom}
-              className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-sm active:bg-amber-600 transition-colors"
-            >
+            <button onClick={handleRandom} className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-sm active:bg-amber-600 transition-colors">
               🎲 随机抽签
             </button>
           </div>
         </div>
       )}
 
-      {/* Filtered results status */}
+      {/* Filter status */}
       {appliedFilters && (
         <div className="flex items-center justify-between text-xs">
           <span className="text-gray-500">
-            {displayedRestaurants.length === 0
-              ? '无符合条件的餐厅'
-              : `${displayedRestaurants.length} 家符合条件`}
+            {displayedRestaurants.length === 0 ? '无符合条件的餐厅' : `${displayedRestaurants.length} 家符合条件`}
           </span>
-          <button onClick={clearFilters} className="text-gray-400 underline underline-offset-2 active:text-gray-600">
-            清除筛选
-          </button>
+          <button onClick={clearFilters} className="text-gray-400 underline underline-offset-2">清除筛选</button>
         </div>
       )}
 
@@ -535,25 +750,14 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
         <div className="card border-2 border-amber-400 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">🎲 今日推荐</p>
-            <button
-              onClick={() => setPickedId(null)}
-              className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-lg leading-none"
-            >
-              ×
-            </button>
+            <button onClick={() => setPickedId(null)} className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-lg leading-none">×</button>
           </div>
-          <RestaurantCard r={picked} currentUserId={currentUserId} onRecommend={handleRecommend} />
+          <RestaurantCard r={picked} currentUserId={currentUserId} onRecommend={handleRecommend} onEdit={openEditModal} />
           <div className="flex gap-2 pt-1 border-t border-amber-100">
-            <button
-              onClick={handleReRandom}
-              className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold active:bg-amber-600 transition-colors"
-            >
+            <button onClick={handleReRandom} className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold active:bg-amber-600 transition-colors">
               再来一次
             </button>
-            <button
-              onClick={() => setPickedId(null)}
-              className="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm active:bg-gray-50 transition-colors"
-            >
+            <button onClick={() => setPickedId(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm active:bg-gray-50 transition-colors">
               取消
             </button>
           </div>
@@ -571,27 +775,21 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
         <div className="space-y-4">
           {displayedRestaurants.map(r => (
             <div key={r.id} className="card space-y-3">
-              <RestaurantCard r={r} currentUserId={currentUserId} onRecommend={handleRecommend} />
+              <RestaurantCard r={r} currentUserId={currentUserId} onRecommend={handleRecommend} onEdit={openEditModal} />
             </div>
           ))}
         </div>
       )}
 
-      {/* Add Restaurant Modal */}
+      {/* ── Add Restaurant Modal ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowModal(false)} />
           <div className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
               <h2 className="font-semibold text-gray-900">添加餐厅</h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-lg leading-none"
-              >
-                ×
-              </button>
+              <button onClick={() => setShowModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-lg leading-none">×</button>
             </div>
-
             <div className="overflow-y-auto flex-1 p-4 space-y-4">
 
               {/* Google Maps import */}
@@ -607,150 +805,55 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
                     onChange={e => { setParseMsg(null); setParseExtra(null); setForm(f => ({ ...f, google_maps_url: e.target.value })) }}
                     className="input flex-1 text-sm"
                   />
-                  <button
-                    type="button"
-                    onClick={handleParseGMaps}
-                    disabled={!form.google_maps_url.trim() || parsing}
-                    className="shrink-0 px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-medium disabled:opacity-40 active:bg-gray-50 transition-colors"
-                  >
+                  <button type="button" onClick={handleParseGMaps} disabled={!form.google_maps_url.trim() || parsing}
+                    className="shrink-0 px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-medium disabled:opacity-40 active:bg-gray-50 transition-colors">
                     {parsing ? '解析中…' : '解析'}
                   </button>
                 </div>
-                {parseMsg && (
-                  <p className={`text-xs mt-1.5 ${parseMsg.ok ? 'text-brand-600' : 'text-red-500'}`}>
-                    {parseMsg.text}
-                  </p>
-                )}
+                {parseMsg && <p className={`text-xs mt-1.5 ${parseMsg.ok ? 'text-brand-600' : 'text-red-500'}`}>{parseMsg.text}</p>}
                 {parseExtra && (
                   <div className="mt-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
-                    {parseExtra.rating !== undefined && (
-                      <span>⭐ {parseExtra.rating.toFixed(1)} ({parseExtra.userRatingCount?.toLocaleString()} 评价)</span>
-                    )}
-                    {parseExtra.priceLevel && (
-                      <span>{'$'.repeat({ PRICE_LEVEL_INEXPENSIVE: 1, PRICE_LEVEL_MODERATE: 2, PRICE_LEVEL_EXPENSIVE: 3, PRICE_LEVEL_VERY_EXPENSIVE: 4 }[parseExtra.priceLevel] ?? 2)}</span>
-                    )}
+                    {parseExtra.rating !== undefined && <span>⭐ {parseExtra.rating.toFixed(1)} ({parseExtra.userRatingCount?.toLocaleString()} 评价)</span>}
+                    {parseExtra.priceLevel && <span>{'$'.repeat({ PRICE_LEVEL_INEXPENSIVE: 1, PRICE_LEVEL_MODERATE: 2, PRICE_LEVEL_EXPENSIVE: 3, PRICE_LEVEL_VERY_EXPENSIVE: 4 }[parseExtra.priceLevel] ?? 2)}</span>}
                     {parseExtra.phone && <span>📞 {parseExtra.phone}</span>}
-                    {parseExtra.website && (
-                      <a href={parseExtra.website} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline underline-offset-1">官网</a>
-                    )}
+                    {parseExtra.website && <a href={parseExtra.website} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline underline-offset-1">官网</a>}
                   </div>
                 )}
               </div>
 
-              {/* Name */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  店名 <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="餐厅名称"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className="input text-sm"
-                />
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">店名 <span className="text-red-400">*</span></label>
+                <input type="text" placeholder="餐厅名称" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input text-sm" />
               </div>
 
-              {/* Cuisine */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">菜系</label>
-                <input
-                  type="text"
-                  placeholder="输入或从下方选择..."
-                  value={form.cuisine}
-                  onChange={e => setForm(f => ({ ...f, cuisine: e.target.value }))}
-                  className="input text-sm"
-                />
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {cuisineOptions.map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, cuisine: f.cuisine === c ? '' : c }))}
-                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                        form.cuisine === c
-                          ? 'border-brand-400 bg-brand-50 text-brand-700'
-                          : 'border-gray-200 bg-white text-gray-500 active:bg-gray-50'
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <CuisineField value={form.cuisine} onChange={v => setForm(f => ({ ...f, cuisine: v }))} />
 
-              {/* Distance */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">距离</label>
-                <input
-                  type="text"
-                  placeholder="0.3 mi / 5分钟车程"
-                  value={form.distance}
-                  onChange={e => setForm(f => ({ ...f, distance: e.target.value }))}
-                  className="input text-sm"
-                />
+                <input type="text" placeholder="0.3 mi / 5分钟车程" value={form.distance} onChange={e => setForm(f => ({ ...f, distance: e.target.value }))} className="input text-sm" />
               </div>
-
-              {/* Address */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">地址</label>
-                <input
-                  type="text"
-                  placeholder="123 Main St, City, CA 91234"
-                  value={form.address}
-                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
-                  className="input text-sm"
-                />
+                <input type="text" placeholder="123 Main St, City, CA 91234" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className="input text-sm" />
               </div>
-
-              {/* Hours */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">营业时间</label>
-                <input
-                  type="text"
-                  placeholder="Mon–Sun 11am–10pm"
-                  value={form.hours}
-                  onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
-                  className="input text-sm"
-                />
+                <input type="text" placeholder="Mon–Sun 11am–10pm" value={form.hours} onChange={e => setForm(f => ({ ...f, hours: e.target.value }))} className="input text-sm" />
               </div>
-
-              {/* Yelp */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">Yelp 链接</label>
-                <input
-                  type="url"
-                  placeholder="https://www.yelp.com/biz/..."
-                  value={form.yelp_url}
-                  onChange={e => setForm(f => ({ ...f, yelp_url: e.target.value }))}
-                  className="input text-sm"
-                />
+                <input type="url" placeholder="https://www.yelp.com/biz/..." value={form.yelp_url} onChange={e => setForm(f => ({ ...f, yelp_url: e.target.value }))} className="input text-sm" />
               </div>
 
-              {/* Tags */}
               <div className="space-y-3">
                 <p className="text-xs font-medium text-gray-500">标签</p>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, has_wait: !f.has_wait }))}
-                    className={`flex-1 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${
-                      form.has_wait
-                        ? 'border-amber-400 bg-amber-50 text-amber-700'
-                        : 'border-gray-200 bg-white text-gray-400'
-                    }`}
-                  >
+                  <button type="button" onClick={() => setForm(f => ({ ...f, has_wait: !f.has_wait }))}
+                    className={`flex-1 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${form.has_wait ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-400'}`}>
                     {form.has_wait ? '✓' : '○'} 需要等位
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, accepts_reservation: !f.accepts_reservation }))}
-                    className={`flex-1 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${
-                      form.accepts_reservation
-                        ? 'border-green-400 bg-green-50 text-green-700'
-                        : 'border-gray-200 bg-white text-gray-400'
-                    }`}
-                  >
+                  <button type="button" onClick={() => setForm(f => ({ ...f, accepts_reservation: !f.accepts_reservation }))}
+                    className={`flex-1 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${form.accepts_reservation ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 bg-white text-gray-400'}`}>
                     {form.accepts_reservation ? '✓' : '○'} 可以预约
                   </button>
                 </div>
@@ -758,16 +861,8 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
                   <p className="text-xs text-gray-400 mb-2">适合规模</p>
                   <div className="flex flex-wrap gap-2">
                     {GROUP_SIZE_OPTIONS.map(opt => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, group_size: f.group_size === opt ? '' : opt }))}
-                        className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                          form.group_size === opt
-                            ? 'border-blue-400 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 bg-white text-gray-500'
-                        }`}
-                      >
+                      <button key={opt} type="button" onClick={() => setForm(f => ({ ...f, group_size: f.group_size === opt ? '' : opt }))}
+                        className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${form.group_size === opt ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500'}`}>
                         {opt}
                       </button>
                     ))}
@@ -775,40 +870,28 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
                 </div>
               </div>
 
-              {/* Dishes */}
+              <TagsField
+                existingTags={[]}
+                newTags={addTags}
+                newInput={newAddTag}
+                onNewInput={setNewAddTag}
+                onAdd={addTagToList}
+                onRemove={t => setAddTags(prev => prev.filter(x => x !== t))}
+              />
+
               <div className="space-y-2">
                 <p className="text-xs font-medium text-gray-500">推荐菜</p>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="输入菜名，按回车添加"
-                    value={newDish}
-                    onChange={e => setNewDish(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDish() } }}
-                    className="input flex-1 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={addDish}
-                    className="px-4 py-2 bg-brand-600 text-white text-sm rounded-xl active:bg-brand-700 shrink-0"
-                  >
-                    添加
-                  </button>
+                  <input type="text" placeholder="输入菜名，按回车添加" value={newDish} onChange={e => setNewDish(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDish() } }} className="input flex-1 text-sm" />
+                  <button type="button" onClick={addDish} className="px-4 py-2 bg-brand-600 text-white text-sm rounded-xl active:bg-brand-700 shrink-0">添加</button>
                 </div>
                 {dishes.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {dishes.map(d => (
-                      <span
-                        key={d}
-                        className="flex items-center gap-1 text-sm bg-orange-50 text-orange-700 border border-orange-100 px-2.5 py-0.5 rounded-full"
-                      >
+                      <span key={d} className="flex items-center gap-1 text-sm bg-orange-50 text-orange-700 border border-orange-100 px-2.5 py-0.5 rounded-full">
                         {d}
-                        <button
-                          onClick={() => setDishes(prev => prev.filter(x => x !== d))}
-                          className="text-orange-400 hover:text-orange-600 leading-none ml-0.5"
-                        >
-                          ×
-                        </button>
+                        <button onClick={() => setDishes(prev => prev.filter(x => x !== d))} className="text-orange-400 hover:text-orange-600 leading-none ml-0.5">×</button>
                       </span>
                     ))}
                   </div>
@@ -817,17 +900,111 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
 
               <div className="h-2" />
             </div>
-
             <div className="px-4 py-3 border-t border-gray-100 flex gap-3 shrink-0">
-              <button onClick={() => setShowModal(false)} className="btn-secondary flex-1 py-2.5 text-sm">
-                取消
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={!form.name.trim() || submitting}
-                className="btn-primary flex-1 py-2.5 text-sm"
-              >
+              <button onClick={() => setShowModal(false)} className="btn-secondary flex-1 py-2.5 text-sm">取消</button>
+              <button onClick={handleSubmit} disabled={!form.name.trim() || submitting} className="btn-primary flex-1 py-2.5 text-sm">
                 {submitting ? '添加中...' : '添加餐厅'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Modal ── */}
+      {showEditModal && editingRestaurant && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowEditModal(false)} />
+          <div className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+              <div>
+                <h2 className="font-semibold text-gray-900">补充/编辑信息</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{editingRestaurant.name}</p>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-lg leading-none">×</button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4 space-y-4">
+
+              {/* Google Maps parse */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                  Google Maps 链接 <span className="text-gray-400 font-normal">（解析后覆盖对应字段）</span>
+                </label>
+                <div className="flex gap-2">
+                  <input type="url" placeholder="粘贴 Google Maps 链接..." value={editForm.google_maps_url}
+                    onChange={e => { setEditParseMsg(null); setEditForm(f => ({ ...f, google_maps_url: e.target.value })) }}
+                    className="input flex-1 text-sm" />
+                  <button type="button" onClick={handleEditParseGMaps} disabled={!editForm.google_maps_url.trim() || editParsing}
+                    className="shrink-0 px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-medium disabled:opacity-40 active:bg-gray-50 transition-colors">
+                    {editParsing ? '解析中…' : '解析'}
+                  </button>
+                </div>
+                {editParseMsg && <p className={`text-xs mt-1.5 ${editParseMsg.ok ? 'text-brand-600' : 'text-red-500'}`}>{editParseMsg.text}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">店名 <span className="text-red-400">*</span></label>
+                <input type="text" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className="input text-sm" />
+              </div>
+
+              <CuisineField value={editForm.cuisine} onChange={v => setEditForm(f => ({ ...f, cuisine: v }))} />
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">距离</label>
+                <input type="text" placeholder="0.3 mi / 5分钟车程" value={editForm.distance} onChange={e => setEditForm(f => ({ ...f, distance: e.target.value }))} className="input text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">地址</label>
+                <input type="text" value={editForm.address} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))} className="input text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">营业时间</label>
+                <input type="text" value={editForm.hours} onChange={e => setEditForm(f => ({ ...f, hours: e.target.value }))} className="input text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Yelp 链接</label>
+                <input type="url" value={editForm.yelp_url} onChange={e => setEditForm(f => ({ ...f, yelp_url: e.target.value }))} className="input text-sm" />
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-gray-500">标签</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditForm(f => ({ ...f, has_wait: !f.has_wait }))}
+                    className={`flex-1 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${editForm.has_wait ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-400'}`}>
+                    {editForm.has_wait ? '✓' : '○'} 需要等位
+                  </button>
+                  <button type="button" onClick={() => setEditForm(f => ({ ...f, accepts_reservation: !f.accepts_reservation }))}
+                    className={`flex-1 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${editForm.accepts_reservation ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 bg-white text-gray-400'}`}>
+                    {editForm.accepts_reservation ? '✓' : '○'} 可以预约
+                  </button>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">适合规模</p>
+                  <div className="flex flex-wrap gap-2">
+                    {GROUP_SIZE_OPTIONS.map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditForm(f => ({ ...f, group_size: f.group_size === opt ? '' : opt }))}
+                        className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${editForm.group_size === opt ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500'}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <TagsField
+                existingTags={editingRestaurant.tags ?? []}
+                newTags={editNewTags}
+                newInput={editNewTag}
+                onNewInput={setEditNewTag}
+                onAdd={addEditTag}
+                onRemove={t => setEditNewTags(prev => prev.filter(x => x !== t))}
+              />
+
+              <div className="h-2" />
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100 flex gap-3 shrink-0">
+              <button onClick={() => setShowEditModal(false)} className="btn-secondary flex-1 py-2.5 text-sm">取消</button>
+              <button onClick={handleEditSubmit} disabled={!editForm.name.trim() || editSubmitting} className="btn-primary flex-1 py-2.5 text-sm">
+                {editSubmitting ? '保存中...' : '保存'}
               </button>
             </div>
           </div>
@@ -836,9 +1013,7 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium text-white shadow-lg ${
-          toast.ok ? 'bg-brand-600' : 'bg-red-500'
-        }`}>
+        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium text-white shadow-lg ${toast.ok ? 'bg-brand-600' : 'bg-red-500'}`}>
           {toast.msg}
         </div>
       )}

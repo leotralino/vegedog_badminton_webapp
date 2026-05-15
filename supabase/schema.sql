@@ -455,7 +455,7 @@ alter table public.restaurant_recommendations enable row level security;
 -- restaurants
 create policy "restaurants_select_auth"  on public.restaurants for select using (auth.uid() is not null);
 create policy "restaurants_insert_auth"  on public.restaurants for insert with check (auth.uid() = added_by);
-create policy "restaurants_update_own"   on public.restaurants for update using (auth.uid() = added_by);
+create policy "restaurants_update_auth"  on public.restaurants for update using (auth.uid() is not null);
 create policy "restaurants_delete_own"   on public.restaurants for delete using (auth.uid() = added_by);
 
 -- restaurant_dishes
@@ -468,5 +468,26 @@ create policy "recs_select_auth"  on public.restaurant_recommendations for selec
 create policy "recs_all_own"      on public.restaurant_recommendations for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+create table public.restaurant_tags (
+  id            uuid primary key default gen_random_uuid(),
+  restaurant_id uuid not null references public.restaurants(id) on delete cascade,
+  name          text not null,
+  added_by      uuid references public.profiles(id),
+  created_at    timestamptz not null default now(),
+  unique(restaurant_id, name)
+);
+
+alter table public.restaurant_tags enable row level security;
+
+create policy "tags_select_auth"  on public.restaurant_tags for select using (auth.uid() is not null);
+create policy "tags_insert_auth"  on public.restaurant_tags for insert with check (auth.uid() = added_by);
+create policy "tags_delete_own"   on public.restaurant_tags for delete using (auth.uid() = added_by);
+
 create index if not exists idx_restaurant_dishes_restaurant on public.restaurant_dishes(restaurant_id);
 create index if not exists idx_recs_restaurant on public.restaurant_recommendations(restaurant_id);
+create index if not exists idx_restaurant_tags_restaurant on public.restaurant_tags(restaurant_id);
+
+-- Migration (run in Supabase SQL editor if tables already exist):
+-- drop policy if exists "restaurants_update_own" on public.restaurants;
+-- create policy "restaurants_update_auth" on public.restaurants for update using (auth.uid() is not null);
+-- create table public.restaurant_tags ( ... see above ... );

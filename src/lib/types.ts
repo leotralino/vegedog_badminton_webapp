@@ -143,8 +143,17 @@ export interface RestaurantRecommendation {
   created_at:    string
 }
 
+export interface RestaurantTag {
+  id:            string
+  restaurant_id: string
+  name:          string
+  added_by:      string | null
+  created_at:    string
+}
+
 export interface RestaurantWithDetails extends Restaurant {
   adder:           Pick<Profile, 'id' | 'nickname' | 'avatar_url'> | null
   dishes:          RestaurantDish[]
   recommendations: RestaurantRecommendation[]
+  tags:            RestaurantTag[]
 }

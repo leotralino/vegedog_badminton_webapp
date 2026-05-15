@@ -14,7 +14,8 @@ export default async function PostMatchPage() {
       *,
       adder:profiles!added_by(id, nickname, avatar_url),
       dishes:restaurant_dishes(id, name, added_by),
-      recommendations:restaurant_recommendations(id, user_id, recommended)
+      recommendations:restaurant_recommendations(id, user_id, recommended),
+      tags:restaurant_tags(id, name, added_by)
     `)
     .order('created_at', { ascending: false })
 
