@@ -20,6 +20,184 @@ const EMPTY_FORM = {
   group_size: '',
 }
 
+// ── Open-now helpers ──────────────────────────────────────────────────────────
+
+function parseMinutes(s: string): number {
+  const m = s.trim().match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return -1
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
+function isOpenNow(hours: string | null | undefined): boolean {
+  if (!hours) return false
+  const lower = hours.toLowerCase()
+  if (lower.includes('open 24 hours') || lower.includes('24/7')) return true
+
+  const now = new Date()
+  const currentMins = now.getHours() * 60 + now.getMinutes()
+
+  function checkRange(range: string): boolean {
+    const r = range.toLowerCase().trim()
+    if (r === 'closed') return false
+    if (r.includes('open 24')) return true
+    const parts = range.split(/\s[–\-]\s/)
+    if (parts.length !== 2) return false
+    const open = parseMinutes(parts[0])
+    let close = parseMinutes(parts[1])
+    if (open === -1 || close === -1) return false
+    if (close <= open) close += 24 * 60
+    return currentMins >= open && currentMins < close
+  }
+
+  if (hours.startsWith('Daily ')) return checkRange(hours.slice(6))
+
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const today = dayNames[now.getDay()]
+  for (const line of hours.split('\n')) {
+    if (line.startsWith(today + ':')) return checkRange(line.slice(today.length + 2))
+  }
+  return false
+}
+
+// ── RestaurantCard ────────────────────────────────────────────────────────────
+
+interface CardProps {
+  r: RestaurantWithDetails
+  currentUserId: string
+  onRecommend: (id: string, val: boolean) => void
+}
+
+function RestaurantCard({ r, currentUserId, onRecommend }: CardProps) {
+  const thumbsUp = r.recommendations.filter(rec => rec.recommended).length
+  const thumbsDown = r.recommendations.filter(rec => !rec.recommended).length
+  const myRec = r.recommendations.find(rec => rec.user_id === currentUserId)
+  const mapsUrl = r.google_maps_url
+    || (r.address ? `https://maps.google.com/maps?q=${encodeURIComponent(r.address)}` : null)
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <h2 className="font-semibold text-gray-900 leading-snug">{r.name}</h2>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {r.cuisine && <span className="badge bg-brand-100 text-brand-700">{r.cuisine}</span>}
+            {r.distance && <span className="badge bg-gray-100 text-gray-600">{r.distance}</span>}
+            {r.group_size && <span className="badge bg-blue-50 text-blue-600">{r.group_size}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => onRecommend(r.id, true)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-sm transition-colors ${
+              myRec?.recommended === true
+                ? 'bg-brand-100 text-brand-700'
+                : 'bg-gray-100 text-gray-500 active:bg-gray-200'
+            }`}
+          >
+            👍 <span className="tabular-nums">{thumbsUp}</span>
+          </button>
+          <button
+            onClick={() => onRecommend(r.id, false)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-sm transition-colors ${
+              myRec?.recommended === false
+                ? 'bg-red-100 text-red-600'
+                : 'bg-gray-100 text-gray-500 active:bg-gray-200'
+            }`}
+          >
+            👎 <span className="tabular-nums">{thumbsDown}</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5 text-sm text-gray-600">
+        {r.address && (
+          <div className="flex items-start gap-2">
+            <span className="shrink-0 mt-px">📍</span>
+            {mapsUrl ? (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-600 underline underline-offset-2 leading-snug"
+              >
+                {r.address}
+              </a>
+            ) : (
+              <span className="leading-snug">{r.address}</span>
+            )}
+          </div>
+        )}
+        {r.hours && (
+          <div className="flex items-center gap-2">
+            <span>⏰</span>
+            <span>{r.hours}</span>
+          </div>
+        )}
+        {r.yelp_url && (
+          <div className="flex items-center gap-2">
+            <span>🔗</span>
+            <a
+              href={r.yelp_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-600 underline underline-offset-2"
+            >
+              Yelp 链接
+            </a>
+          </div>
+        )}
+      </div>
+
+      {(r.has_wait || r.accepts_reservation) && (
+        <div className="flex flex-wrap gap-1.5">
+          {r.has_wait && (
+            <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+              需要等位
+            </span>
+          )}
+          {r.accepts_reservation && (
+            <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full">
+              可以预约
+            </span>
+          )}
+        </div>
+      )}
+
+      {r.dishes.length > 0 && (
+        <div className="pt-2.5 border-t border-gray-100">
+          <p className="text-xs text-gray-400 mb-1.5">推荐菜</p>
+          <div className="flex flex-wrap gap-1.5">
+            {r.dishes.map(d => (
+              <span
+                key={d.id}
+                className="text-sm bg-orange-50 text-orange-700 border border-orange-100 px-2.5 py-0.5 rounded-full"
+              >
+                {d.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {r.adder && (
+        <div className="pt-2 border-t border-gray-100 flex items-center gap-1.5">
+          {r.adder.avatar_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={r.adder.avatar_url} alt="" className="w-4 h-4 rounded-full" />
+          )}
+          <span className="text-xs text-gray-400">{r.adder.nickname} 添加</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 interface Props {
   initialRestaurants: RestaurantWithDetails[]
   currentUserId: string
@@ -39,6 +217,14 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
     rating?: number; userRatingCount?: number; priceLevel?: string; phone?: string; website?: string
   } | null>(null)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [showRandomPanel, setShowRandomPanel] = useState(false)
+  const [rfCuisine, setRfCuisine] = useState('')
+  const [rfGroupSize, setRfGroupSize] = useState('')
+  const [rfReserveOnly, setRfReserveOnly] = useState(false)
+  const [rfOpenNow, setRfOpenNow] = useState(false)
+  // Store only the ID so picked card auto-reflects recommendation updates
+  const [pickedId, setPickedId] = useState<string | null>(null)
+  const picked = pickedId ? (restaurants.find(r => r.id === pickedId) ?? null) : null
 
   const cuisineOptions = useMemo(() => {
     const seen = new Set(COMMON_CUISINES)
@@ -50,6 +236,18 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
       }
     }
     return [...COMMON_CUISINES, ...extras]
+  }, [restaurants])
+
+  const existingCuisines = useMemo(() => {
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const r of restaurants) {
+      if (r.cuisine && !seen.has(r.cuisine)) {
+        seen.add(r.cuisine)
+        result.push(r.cuisine)
+      }
+    }
+    return result
   }, [restaurants])
 
   function showToast(msg: string, ok = true) {
@@ -209,24 +407,142 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
     }
   }
 
-  function getMapsUrl(r: RestaurantWithDetails) {
-    if (r.google_maps_url) return r.google_maps_url
-    if (r.address) return `https://maps.google.com/maps?q=${encodeURIComponent(r.address)}`
-    return null
+  function handleRandom() {
+    const candidates = restaurants.filter(r => {
+      if (rfCuisine && r.cuisine !== rfCuisine) return false
+      if (rfGroupSize && r.group_size !== rfGroupSize) return false
+      if (rfReserveOnly && !r.accepts_reservation) return false
+      if (rfOpenNow && !isOpenNow(r.hours)) return false
+      return true
+    })
+    if (!candidates.length) {
+      showToast('没有符合条件的餐厅', false)
+      return
+    }
+    setPickedId(candidates[Math.floor(Math.random() * candidates.length)].id)
   }
+
+  const chipCls = (active: boolean) =>
+    `text-xs px-2.5 py-1 rounded-full border transition-colors ${
+      active
+        ? 'border-amber-400 bg-amber-50 text-amber-700'
+        : 'border-gray-200 bg-white text-gray-500 active:bg-gray-50'
+    }`
+
+  const toggleCls = (active: boolean) =>
+    `flex-1 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${
+      active
+        ? 'border-amber-400 bg-amber-50 text-amber-700'
+        : 'border-gray-200 bg-white text-gray-400'
+    }`
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">赛后总结</h1>
-        <button
-          onClick={openModal}
-          className="text-sm font-semibold text-white bg-brand-600 px-3 py-1.5 rounded-lg active:bg-brand-700 transition-colors"
-        >
-          + 添加餐厅
-        </button>
+        <div className="flex items-center gap-2">
+          {restaurants.length > 0 && (
+            <button
+              onClick={() => { setShowRandomPanel(p => !p); setPickedId(null) }}
+              className={`text-sm font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                showRandomPanel
+                  ? 'border-amber-400 bg-amber-50 text-amber-600'
+                  : 'border-gray-200 bg-white text-gray-600 active:bg-gray-50'
+              }`}
+            >
+              🎲 随机
+            </button>
+          )}
+          <button
+            onClick={openModal}
+            className="text-sm font-semibold text-white bg-brand-600 px-3 py-1.5 rounded-lg active:bg-brand-700 transition-colors"
+          >
+            + 添加餐厅
+          </button>
+        </div>
       </div>
 
+      {/* Random filter panel */}
+      {showRandomPanel && (
+        <div className="card space-y-3 border-amber-200 bg-amber-50/30">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">随机条件</p>
+
+          {existingCuisines.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5">口味</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => setRfCuisine('')} className={chipCls(rfCuisine === '')}>不限</button>
+                {existingCuisines.map(c => (
+                  <button key={c} onClick={() => setRfCuisine(rfCuisine === c ? '' : c)} className={chipCls(rfCuisine === c)}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs text-gray-500 mb-1.5">适合人数</p>
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={() => setRfGroupSize('')} className={chipCls(rfGroupSize === '')}>不限</button>
+              {GROUP_SIZE_OPTIONS.map(g => (
+                <button key={g} onClick={() => setRfGroupSize(rfGroupSize === g ? '' : g)} className={chipCls(rfGroupSize === g)}>
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={() => setRfReserveOnly(p => !p)} className={toggleCls(rfReserveOnly)}>
+              {rfReserveOnly ? '✓' : '○'} 可以预约
+            </button>
+            <button onClick={() => setRfOpenNow(p => !p)} className={toggleCls(rfOpenNow)}>
+              {rfOpenNow ? '✓' : '○'} 当前营业
+            </button>
+          </div>
+
+          <button
+            onClick={handleRandom}
+            className="w-full py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-sm active:bg-amber-600 transition-colors"
+          >
+            🎲 开始抽签
+          </button>
+        </div>
+      )}
+
+      {/* Picked result */}
+      {picked && (
+        <div className="card border-2 border-amber-400 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">🎲 今日推荐</p>
+            <button
+              onClick={() => setPickedId(null)}
+              className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
+          <RestaurantCard r={picked} currentUserId={currentUserId} onRecommend={handleRecommend} />
+          <div className="flex gap-2 pt-1 border-t border-amber-100">
+            <button
+              onClick={handleRandom}
+              className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold active:bg-amber-600 transition-colors"
+            >
+              再来一次
+            </button>
+            <button
+              onClick={() => setPickedId(null)}
+              className="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm active:bg-gray-50 transition-colors"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Restaurant list */}
       {restaurants.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
           <p className="text-3xl mb-2">🍜</p>
@@ -235,137 +551,11 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
         </div>
       ) : (
         <div className="space-y-4">
-          {restaurants.map(r => {
-            const thumbsUp = r.recommendations.filter(rec => rec.recommended).length
-            const thumbsDown = r.recommendations.filter(rec => !rec.recommended).length
-            const myRec = r.recommendations.find(rec => rec.user_id === currentUserId)
-            const mapsUrl = getMapsUrl(r)
-
-            return (
-              <div key={r.id} className="card space-y-3">
-                {/* Name row + vote buttons */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-gray-900 leading-snug">{r.name}</h2>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {r.cuisine && (
-                        <span className="badge bg-brand-100 text-brand-700">{r.cuisine}</span>
-                      )}
-                      {r.distance && (
-                        <span className="badge bg-gray-100 text-gray-600">{r.distance}</span>
-                      )}
-                      {r.group_size && (
-                        <span className="badge bg-blue-50 text-blue-600">{r.group_size}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleRecommend(r.id, true)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-sm transition-colors ${
-                        myRec?.recommended === true
-                          ? 'bg-brand-100 text-brand-700'
-                          : 'bg-gray-100 text-gray-500 active:bg-gray-200'
-                      }`}
-                    >
-                      👍 <span className="tabular-nums">{thumbsUp}</span>
-                    </button>
-                    <button
-                      onClick={() => handleRecommend(r.id, false)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-sm transition-colors ${
-                        myRec?.recommended === false
-                          ? 'bg-red-100 text-red-600'
-                          : 'bg-gray-100 text-gray-500 active:bg-gray-200'
-                      }`}
-                    >
-                      👎 <span className="tabular-nums">{thumbsDown}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Info rows */}
-                <div className="space-y-1.5 text-sm text-gray-600">
-                  {r.address && (
-                    <div className="flex items-start gap-2">
-                      <span className="shrink-0 mt-px">📍</span>
-                      {mapsUrl ? (
-                        <a
-                          href={mapsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-brand-600 underline underline-offset-2 leading-snug"
-                        >
-                          {r.address}
-                        </a>
-                      ) : (
-                        <span className="leading-snug">{r.address}</span>
-                      )}
-                    </div>
-                  )}
-                  {r.hours && (
-                    <div className="flex items-center gap-2">
-                      <span>⏰</span>
-                      <span>{r.hours}</span>
-                    </div>
-                  )}
-                  {r.yelp_url && (
-                    <div className="flex items-center gap-2">
-                      <span>🔗</span>
-                      <a
-                        href={r.yelp_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-brand-600 underline underline-offset-2"
-                      >
-                        Yelp 链接
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                {/* Tag chips */}
-                {(r.has_wait || r.accepts_reservation) && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {r.has_wait && (
-                      <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                        需要等位
-                      </span>
-                    )}
-                    {r.accepts_reservation && (
-                      <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full">
-                        可以预约
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Dishes */}
-                {r.dishes.length > 0 && (
-                  <div className="pt-2.5 border-t border-gray-100">
-                    <p className="text-xs text-gray-400 mb-1.5">推荐菜</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {r.dishes.map(d => (
-                        <span key={d.id} className="text-sm bg-orange-50 text-orange-700 border border-orange-100 px-2.5 py-0.5 rounded-full">
-                          {d.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Added by */}
-                {r.adder && (
-                  <div className="pt-2 border-t border-gray-100 flex items-center gap-1.5">
-                    {r.adder.avatar_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.adder.avatar_url} alt="" className="w-4 h-4 rounded-full" />
-                    )}
-                    <span className="text-xs text-gray-400">{r.adder.nickname} 添加</span>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          {restaurants.map(r => (
+            <div key={r.id} className="card space-y-3">
+              <RestaurantCard r={r} currentUserId={currentUserId} onRecommend={handleRecommend} />
+            </div>
+          ))}
         </div>
       )}
 
@@ -374,7 +564,6 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowModal(false)} />
           <div className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
-            {/* Modal header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
               <h2 className="font-semibold text-gray-900">添加餐厅</h2>
               <button
@@ -385,7 +574,6 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
               </button>
             </div>
 
-            {/* Scrollable form */}
             <div className="overflow-y-auto flex-1 p-4 space-y-4">
 
               {/* Google Maps import */}
@@ -611,11 +799,9 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
                 )}
               </div>
 
-              {/* Bottom padding so last field isn't hidden behind footer */}
               <div className="h-2" />
             </div>
 
-            {/* Footer */}
             <div className="px-4 py-3 border-t border-gray-100 flex gap-3 shrink-0">
               <button
                 onClick={() => setShowModal(false)}
