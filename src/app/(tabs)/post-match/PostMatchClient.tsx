@@ -78,9 +78,11 @@ interface CardProps {
   currentUserId: string
   onRecommend: (id: string, val: boolean) => void
   onEdit: (r: RestaurantWithDetails) => void
+  onDelete?: (id: string) => void
 }
 
-function RestaurantCard({ r, currentUserId, onRecommend, onEdit }: CardProps) {
+function RestaurantCard({ r, currentUserId, onRecommend, onEdit, onDelete }: CardProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const thumbsUp = r.recommendations.filter(rec => rec.recommended).length
   const thumbsDown = r.recommendations.filter(rec => !rec.recommended).length
   const myRec = r.recommendations.find(rec => rec.user_id === currentUserId)
@@ -207,7 +209,7 @@ function RestaurantCard({ r, currentUserId, onRecommend, onEdit }: CardProps) {
         </div>
       )}
 
-      {/* Footer row: adder + edit button */}
+      {/* Footer row: adder + actions */}
       <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           {r.adder && (
@@ -220,17 +222,48 @@ function RestaurantCard({ r, currentUserId, onRecommend, onEdit }: CardProps) {
             </>
           )}
         </div>
-        {currentUserId && (
-          <button
-            onClick={() => onEdit(r)}
-            className="text-xs text-gray-400 hover:text-brand-600 transition-colors shrink-0 flex items-center gap-0.5"
-          >
-            <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z"/>
-            </svg>
-            补充/编辑
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {onDelete && (
+            confirmDelete ? (
+              <>
+                <button
+                  onClick={() => { onDelete(r.id); setConfirmDelete(false) }}
+                  className="text-xs text-red-600 font-medium hover:text-red-700 transition-colors"
+                >
+                  确认删除
+                </button>
+                <span className="text-gray-200">|</span>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  取消
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="text-xs text-gray-300 hover:text-red-400 transition-colors flex items-center gap-0.5"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M6 2h4a1 1 0 0 1 1 1H5a1 1 0 0 1 1-1zM2 4h12v1H2V4zm2 2h8l-.8 8H4.8L4 6zm2 1v6h1V7H6zm3 0v6h1V7H9z"/>
+                </svg>
+                删除
+              </button>
+            )
+          )}
+          {currentUserId && (
+            <button
+              onClick={() => onEdit(r)}
+              className="text-xs text-gray-400 hover:text-brand-600 transition-colors flex items-center gap-0.5"
+            >
+              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z"/>
+              </svg>
+              补充/编辑
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -260,9 +293,10 @@ function applyFilters(list: RestaurantWithDetails[], f: AppliedFilters) {
 interface Props {
   initialRestaurants: RestaurantWithDetails[]
   currentUserId: string
+  isAdmin: boolean
 }
 
-export default function PostMatchClient({ initialRestaurants, currentUserId }: Props) {
+export default function PostMatchClient({ initialRestaurants, currentUserId, isAdmin }: Props) {
   const supabase = createClient()
   const [restaurants, setRestaurants] = useState<RestaurantWithDetails[]>(initialRestaurants)
 
@@ -482,6 +516,7 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
           google_maps_url: editForm.google_maps_url.trim() || null,
           has_wait: editForm.has_wait, accepts_reservation: editForm.accepts_reservation,
           group_size: editForm.group_size || null,
+          last_updated_by: currentUserId,
         })
         .eq('id', editingRestaurant.id)
       if (error) { showToast('保存失败，请重试', false); return }
@@ -540,6 +575,14 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
 
   function getDraftFilters(): AppliedFilters {
     return { cuisine: rfCuisine, groupSize: rfGroupSize, reserveOnly: rfReserveOnly, openNow: rfOpenNow }
+  }
+
+  async function handleDelete(restaurantId: string) {
+    const { error } = await supabase.from('restaurants').delete().eq('id', restaurantId)
+    if (error) { showToast('删除失败，请重试', false); return }
+    setRestaurants(prev => prev.filter(r => r.id !== restaurantId))
+    if (pickedId === restaurantId) setPickedId(null)
+    showToast('餐厅已删除')
   }
 
   function handleFilter() {
@@ -752,7 +795,11 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
             <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">🎲 今日推荐</p>
             <button onClick={() => setPickedId(null)} className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-lg leading-none">×</button>
           </div>
-          <RestaurantCard r={picked} currentUserId={currentUserId} onRecommend={handleRecommend} onEdit={openEditModal} />
+          <RestaurantCard r={picked} currentUserId={currentUserId} onRecommend={handleRecommend} onEdit={openEditModal} onDelete={
+              isAdmin || (r.added_by === currentUserId && (!r.last_updated_by || r.last_updated_by === currentUserId))
+                ? handleDelete
+                : undefined
+            } />
           <div className="flex gap-2 pt-1 border-t border-amber-100">
             <button onClick={handleReRandom} className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold active:bg-amber-600 transition-colors">
               再来一次
@@ -775,7 +822,11 @@ export default function PostMatchClient({ initialRestaurants, currentUserId }: P
         <div className="space-y-4">
           {displayedRestaurants.map(r => (
             <div key={r.id} className="card space-y-3">
-              <RestaurantCard r={r} currentUserId={currentUserId} onRecommend={handleRecommend} onEdit={openEditModal} />
+              <RestaurantCard r={r} currentUserId={currentUserId} onRecommend={handleRecommend} onEdit={openEditModal} onDelete={
+              isAdmin || (r.added_by === currentUserId && (!r.last_updated_by || r.last_updated_by === currentUserId))
+                ? handleDelete
+                : undefined
+            } />
             </div>
           ))}
         </div>

@@ -11,6 +11,7 @@ create table public.profiles (
   nickname       text not null default '',
   avatar_url     text,
   venmo_username text,
+  is_admin       boolean not null default false,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
@@ -428,6 +429,7 @@ create table public.restaurants (
   accepts_reservation  boolean not null default false,
   group_size           text,
   added_by             uuid references public.profiles(id),
+  last_updated_by      uuid references public.profiles(id),
   created_at           timestamptz not null default now()
 );
 
@@ -456,7 +458,14 @@ alter table public.restaurant_recommendations enable row level security;
 create policy "restaurants_select_auth"  on public.restaurants for select using (auth.uid() is not null);
 create policy "restaurants_insert_auth"  on public.restaurants for insert with check (auth.uid() = added_by);
 create policy "restaurants_update_auth"  on public.restaurants for update using (auth.uid() is not null);
-create policy "restaurants_delete_own"   on public.restaurants for delete using (auth.uid() = added_by);
+-- Admin can delete anything; regular users can only delete if they added it and no one else has edited it
+create policy "restaurants_delete_auth"  on public.restaurants for delete using (
+  exists (select 1 from public.profiles where id = auth.uid() and is_admin = true)
+  or (
+    auth.uid() = added_by
+    and (last_updated_by is null or last_updated_by = auth.uid())
+  )
+);
 
 -- restaurant_dishes
 create policy "dishes_select_auth"   on public.restaurant_dishes for select using (auth.uid() is not null);
@@ -489,5 +498,14 @@ create index if not exists idx_restaurant_tags_restaurant on public.restaurant_t
 
 -- Migration (run in Supabase SQL editor if tables already exist):
 -- drop policy if exists "restaurants_update_own" on public.restaurants;
+-- drop policy if exists "restaurants_delete_own" on public.restaurants;
+-- drop policy if exists "restaurants_delete_auth" on public.restaurants;
 -- create policy "restaurants_update_auth" on public.restaurants for update using (auth.uid() is not null);
--- create table public.restaurant_tags ( ... see above ... );
+-- alter table public.restaurants add column if not exists last_updated_by uuid references public.profiles(id);
+-- create policy "restaurants_delete_auth" on public.restaurants for delete using (
+--   exists (select 1 from public.profiles where id = auth.uid() and is_admin = true)
+--   or (auth.uid() = added_by and (last_updated_by is null or last_updated_by = auth.uid()))
+-- );
+-- create table if not exists public.restaurant_tags ( ... see above ... );
+-- update public.profiles set is_admin = true
+--   where id = (select id from auth.users where email = 'vegabaixuan@gmail.com');

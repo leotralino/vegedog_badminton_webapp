@@ -25,6 +25,7 @@ export interface Profile {
   nickname:       string
   avatar_url:     string | null
   venmo_username: string | null
+  is_admin:       boolean
   created_at:     string
   updated_at:     string
 }
@@ -124,6 +125,7 @@ export interface Restaurant {
   accepts_reservation: boolean
   group_size:          string | null
   added_by:            string | null
+  last_updated_by:     string | null
   created_at:          string
 }
 

@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
   }
   if (!API_KEY) {
+    console.error('[parse-gmaps] GOOGLE_PLACES_API_KEY is not set')
     return NextResponse.json({ error: 'GOOGLE_PLACES_API_KEY not configured' }, { status: 500 })
   }
 
