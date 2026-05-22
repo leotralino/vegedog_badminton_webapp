@@ -683,7 +683,7 @@ export default function PostMatchClient({ initialRestaurants, currentUserId, isA
             placeholder="输入标签，按回车添加"
             value={newInput}
             onChange={e => onNewInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onAdd() } }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); onAdd() } }}
             className="input flex-1 text-sm"
           />
           <button type="button" onClick={onAdd} className="px-4 py-2 bg-violet-600 text-white text-sm rounded-xl active:bg-violet-700 shrink-0">
@@ -706,6 +706,9 @@ export default function PostMatchClient({ initialRestaurants, currentUserId, isA
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/dog_eating.png" alt="" aria-hidden="true"
+        className="fixed bottom-20 right-2 w-80 h-80 object-contain pointer-events-none opacity-30 z-0" />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -713,17 +716,17 @@ export default function PostMatchClient({ initialRestaurants, currentUserId, isA
           {restaurants.length > 0 && (
             <button
               onClick={() => setShowFilterPanel(p => !p)}
-              className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${
+              className={`text-sm font-semibold px-3.5 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
                 showFilterPanel || hasActiveFilters
                   ? 'border-amber-400 bg-amber-50 text-amber-600'
                   : 'border-gray-200 bg-white text-gray-500 active:bg-gray-50'
               }`}
             >
-              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M1.5 3h13a.5.5 0 0 1 .4.8L10 9.4V14a.5.5 0 0 1-.8.4l-3-2A.5.5 0 0 1 6 12V9.4L1.1 3.8A.5.5 0 0 1 1.5 3z"/>
               </svg>
-              筛选
-              {hasActiveFilters && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ml-0.5" />}
+              筛选/随机
+              {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-amber-500 ml-0.5" />}
             </button>
           )}
         </div>
