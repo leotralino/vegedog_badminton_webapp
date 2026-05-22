@@ -716,11 +716,7 @@ export default function PostMatchClient({ initialRestaurants, currentUserId, isA
           {restaurants.length > 0 && (
             <button
               onClick={() => setShowFilterPanel(p => !p)}
-              className={`text-sm font-semibold px-3.5 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
-                showFilterPanel || hasActiveFilters
-                  ? 'border-amber-400 bg-amber-50 text-amber-600'
-                  : 'border-gray-200 bg-white text-gray-500 active:bg-gray-50'
-              }`}
+              className="text-sm font-semibold px-3.5 py-1.5 rounded-lg border border-amber-500 bg-amber-500 text-white active:bg-amber-600 transition-colors flex items-center gap-1.5"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M1.5 3h13a.5.5 0 0 1 .4.8L10 9.4V14a.5.5 0 0 1-.8.4l-3-2A.5.5 0 0 1 6 12V9.4L1.1 3.8A.5.5 0 0 1 1.5 3z"/>
