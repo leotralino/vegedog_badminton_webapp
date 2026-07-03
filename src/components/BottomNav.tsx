@@ -19,14 +19,18 @@ const tabs = [
     ),
   },
   {
-    href: '/history',
-    label: '历史',
+    href: '/versus',
+    label: '对战',
     icon: (active: boolean) => (
       <svg className={`w-6 h-6 ${active ? 'text-brand-600' : 'text-gray-400'}`}
         viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
+        <path d="M14.5 17.5 21 11l-2-2-6.5 6.5"/>
+        <path d="m5 21 4-4"/>
+        <path d="M9.5 6.5 3 13l2 2 6.5-6.5"/>
+        <path d="m15 3 6 6"/>
+        <path d="M14.5 6.5 17.5 3"/>
+        <path d="M6.5 9.5 9.5 6.5"/>
       </svg>
     ),
   },
@@ -42,7 +46,7 @@ const tabs = [
         <path d="M4 22h16"/>
         <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
         <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
-        <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
       </svg>
     ),
   },

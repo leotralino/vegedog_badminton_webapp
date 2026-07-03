@@ -289,7 +289,13 @@ Records are **immutable in identity** — once created, the participant associat
 ---
 
 ### `follows`
-Tracks who follows whom. When user A follows user B, and B creates a new session, A gets an email notification.
+Tracks who follows whom. When user A follows user B, and B creates a new session, A gets an email notification — unless A has turned it off (see below).
+
+**Email notification preferences.** Each `profiles` row carries four opt-out flags (all `boolean not null default true`): `notify_follow` (关注的人发起新接龙), `notify_promoted` (候补递补成功), `notify_match_recorded` (对局待确认), `notify_match_published` (对局发布). Users toggle these on the 设置 → 账户 page. The corresponding `/api/notify-*` routes filter recipients by the matching flag before sending, so opting out suppresses that **email**. New columns ship in `supabase/migrations_notify_prefs.sql`.
+
+**对战积分 (ELO) — Phase 2.** Two tables: `player_ratings` (current rating, games_played, peak) and `rating_history` (per-match before/after/delta). A SECURITY DEFINER function `apply_match_rating(match_id)` runs inside `confirm_match`'s publish branch: decreasing-K ELO settled **per game** in `game_no` order, with a margin-of-victory multiplier and a large-gap damper so high players aren't punished hard for losing to beginners. Guests contribute a fixed anchor (1000) but never gain/lose. Idempotent (skips if `rating_history` already has the match). The 对战 → **排行榜** sub-tab shows a comprehensive ELO leaderboard + a serpentine grouping helper; a player's rank/score also appears on their profile. (菜狗杯 — a formal tournament with brackets — is a separate future feature, not this leaderboard.) Ships in `supabase/migrations_versus_phase2.sql`. See `docs/versus-design.md §8`.
+
+**站内信 (notifications) — Phase 2.** A `notifications` table (recipient `user_id`, `type`, `title`, `body`, `link`, `read`) drives an in-app notification center: a navbar bell with an unread red dot (realtime), and the `/notifications` list page (opening it marks all read). Letters are created server-side only — match events from the `request_match_confirmation` / `confirm_match` RPCs, and follow-new-session / waitlist-promotion from the `/api/notify-followers` / `/api/notify-promoted` routes. In-app letters are **always** created (independent of the email opt-out flags above; those gate only email). RLS: you read/update only your own. Ships in `supabase/migrations_notifications.sql`.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -593,6 +599,8 @@ Next.js API routes are serverless functions that run on Vercel (not in the brows
 | Route | Method | Purpose |
 |-------|--------|---------|
 | `/api/notify-followers` | POST | Sends email to followers when a new session is created. Uses `SUPABASE_SERVICE_ROLE_KEY` to read `auth.users` emails (not accessible from browser) |
+| `/api/notify-match-confirmation` | POST | Emails the registered opponents/teammate of a 对战 (match) to confirm a result. Opt-in: the recorder must tick "发送邮件通知参与方" (default off) on the match page; only then does the client call this route. See `docs/versus-design.md` |
+| `/api/notify-match-published` | POST | Emails all registered participants when the final confirmation publishes a match. Fired by the confirming client when `confirm_match` returns `status='published'`. Gated by `ENABLE_EMAIL`. |
 | `/api/send-court-email` | POST | Sends the session roster to the court's email address |
 | `/api/ping` | GET | Lightweight DB query to keep the free-tier Supabase project from pausing due to inactivity (called by Vercel cron daily) |
 
@@ -610,7 +618,7 @@ src/
 │   ├── (tabs)/                        # Tab-navigated pages (shared bottom nav)
 │   │   ├── sessions/page.tsx          # Server component: active sessions list
 │   │   ├── history/page.tsx           # Server component: past sessions
-│   │   ├── cup/page.tsx               # 菜狗杯 placeholder
+│   │   ├── versus/                    # 对战 tab: 对局 / 对战历史 / 菜狗杯 sub-views
 │   │   └── settings/
 │   │       ├── page.tsx               # Server component: reads CHANGELOG.md at build time
 │   │       └── SettingsClient.tsx     # Client component: all interactive settings logic
@@ -621,23 +629,34 @@ src/
 │   │   │   └── SessionDetailClient.tsx # Client component: join/withdraw/lock/pay/etc.
 │   │   └── new/page.tsx               # Client component: create session form
 │   │
+│   ├── versus/
+│   │   ├── [id]/                      # Match detail: score entry, confirm flow, visibility toggle, realtime
+│   │   └── new/page.tsx               # Create-match form (singles/doubles, member pickers)
+│   │
+│   ├── players/
+│   │   └── [id]/page.tsx              # Player profile: public published matches + win/loss record
+│   │
 │   ├── login/page.tsx                 # Client component: Google/magic link/password login
 │   ├── auth/callback/route.ts         # OAuth redirect handler (exchanges code for session)
 │   │
 │   └── api/
 │       ├── notify-followers/route.ts  # Sends follower email notifications
+│       ├── notify-match-confirmation/route.ts # Emails match participants to confirm a result (recorder opt-in)
+│       ├── notify-match-published/route.ts # Emails all participants when a match is published
 │       ├── send-court-email/route.ts  # Sends roster to court
 │       └── ping/route.ts             # DB keep-alive for free-tier Supabase
 │
 ├── components/
 │   ├── Navbar.tsx                     # Server component: top nav with avatar
 │   ├── NavbarActions.tsx              # Client component: logout button
-│   ├── BottomNav.tsx                  # Client component: tab bar (sessions/history/settings)
+│   ├── BottomNav.tsx                  # Client component: tab bar (sessions/history/versus/...)
+│   ├── MemberPicker.tsx              # Nickname-search member picker (+ guest force-input)
 │   └── SessionCard.tsx                # Server component: session summary card
 │
 ├── lib/
 │   ├── types.ts                       # TypeScript interfaces for all DB tables
 │   ├── dates.ts                       # Date formatting utilities
+│   ├── match.ts                       # 对战 result helpers (games won, winner, score line)
 │   ├── locations.ts                   # Preset venue list
 │   └── supabase/
 │       ├── client.ts                  # Browser Supabase client (reads auth from cookies)
@@ -647,10 +666,12 @@ src/
 
 supabase/
 ├── schema.sql                         # All tables, RLS policies, triggers, functions — single source of truth
+├── migrations_versus.sql              # 对战 feature migration to run on the existing live DB
 └── patches.sql                        # Retired (all patches merged into schema.sql)
 
 docs/
 ├── architecture.md                    # This file
+├── versus-design.md                   # 对战 (match) feature design + Phase 2 rating plan
 └── development.md                     # Setup guide for new environments
 
 vercel.json                            # Cron job config (daily ping)

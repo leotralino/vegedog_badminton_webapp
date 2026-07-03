@@ -12,6 +12,11 @@ create table public.profiles (
   avatar_url     text,
   venmo_username text,
   is_admin       boolean not null default false,
+  -- email notification preferences (all opt-out, default on)
+  notify_follow          boolean not null default true,  -- 关注的人发起新接龙
+  notify_promoted        boolean not null default true,  -- 从候补递补为正式成员（接龙）
+  notify_match_recorded  boolean not null default true,  -- 有人录入对局待你确认
+  notify_match_published boolean not null default true,  -- 对局已发布
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
@@ -589,3 +594,587 @@ create index if not exists idx_restaurant_tags_restaurant on public.restaurant_t
 create index if not exists idx_sessions_starts_at     on public.sessions(starts_at);
 create index if not exists idx_participants_session   on public.participants(session_id, queue_position);
 create index if not exists idx_renames_session        on public.participant_renames(session_id, created_at desc);
+
+-- ============================================================
+-- 8. 对战 (VERSUS / MATCHES)
+-- ============================================================
+-- A "match" is a set of games (局) between a FIXED set of players.
+-- Lifecycle: draft (only recorder sees) → pending (confirmation requested,
+-- email sent) → published (all registered non-recorder participants confirmed).
+-- See docs/versus-design.md for the full design.
+
+create table public.matches (
+  id            uuid primary key default gen_random_uuid(),
+  type          text not null check (type in ('singles', 'doubles')),
+  recorder_id   uuid not null references public.profiles(id),
+  status        text not null default 'draft'
+                  check (status in ('draft', 'pending', 'published', 'canceled')),
+  is_public     boolean not null default true,
+  played_at     timestamptz not null default now(),
+  note          text,
+  created_at    timestamptz not null default now(),
+  published_at  timestamptz
+);
+
+create table public.match_participants (
+  id            uuid primary key default gen_random_uuid(),
+  match_id      uuid not null references public.matches(id) on delete cascade,
+  user_id       uuid references public.profiles(id),          -- null for guests (+1)
+  is_guest      boolean not null default false,
+  team          smallint not null check (team in (1, 2)),     -- 1 = recorder's side
+  is_recorder   boolean not null default false,
+  confirmed     boolean not null default false,               -- recorder/guest slots start true
+  confirmed_at  timestamptz,
+  display_name  text not null,
+  created_at    timestamptz not null default now()
+);
+
+-- One registered profile cannot occupy two slots in the same match (guests exempt).
+create unique index idx_match_participants_unique_user
+  on public.match_participants(match_id, user_id)
+  where user_id is not null;
+
+create table public.match_games (
+  id           uuid primary key default gen_random_uuid(),
+  match_id     uuid not null references public.matches(id) on delete cascade,
+  game_no      int not null,
+  team1_score  int not null default 0,
+  team2_score  int not null default 0,
+  created_at   timestamptz not null default now(),
+  unique (match_id, game_no)
+);
+
+create index if not exists idx_match_participants_match on public.match_participants(match_id);
+create index if not exists idx_match_games_match        on public.match_games(match_id, game_no);
+create index if not exists idx_matches_status           on public.matches(status, published_at desc);
+
+-- ── RPC: create_match ───────────────────────────────────────────────────────
+-- p_participants: jsonb array of { user_id (uuid|null), is_guest (bool),
+--   team (1|2), is_recorder (bool), display_name (text) }
+create or replace function public.create_match(
+  p_type         text,
+  p_is_public    boolean,
+  p_played_at    timestamptz,
+  p_participants jsonb,
+  p_note         text default null
+)
+returns public.matches
+language plpgsql security definer
+as $$
+declare
+  v_match      public.matches;
+  v_part       jsonb;
+  v_expected   int;
+  v_count      int;
+  v_rec_count  int;
+begin
+  if p_type not in ('singles', 'doubles') then raise exception 'Invalid match type'; end if;
+  v_expected := case when p_type = 'singles' then 2 else 4 end;
+
+  v_count := jsonb_array_length(p_participants);
+  if v_count != v_expected then
+    raise exception 'Expected % participants for %, got %', v_expected, p_type, v_count;
+  end if;
+
+  -- Exactly one recorder slot, and it must be the caller.
+  v_rec_count := 0;
+  for v_part in select * from jsonb_array_elements(p_participants) loop
+    if (v_part->>'is_recorder')::boolean then
+      v_rec_count := v_rec_count + 1;
+      if (v_part->>'user_id')::uuid is distinct from auth.uid() then
+        raise exception 'Recorder slot must be the caller';
+      end if;
+    end if;
+    -- Registered slots must reference a real profile.
+    if not coalesce((v_part->>'is_guest')::boolean, false) then
+      if (v_part->>'user_id')::uuid is null then raise exception 'Registered slot missing user_id'; end if;
+      if not exists (select 1 from public.profiles where id = (v_part->>'user_id')::uuid) then
+        raise exception 'Participant is not a registered member';
+      end if;
+    end if;
+  end loop;
+  if v_rec_count != 1 then raise exception 'Exactly one recorder slot required'; end if;
+
+  insert into public.matches (type, recorder_id, status, is_public, played_at, note)
+  values (p_type, auth.uid(), 'draft', coalesce(p_is_public, true), coalesce(p_played_at, now()), p_note)
+  returning * into v_match;
+
+  insert into public.match_participants
+    (match_id, user_id, is_guest, team, is_recorder, confirmed, confirmed_at, display_name)
+  select
+    v_match.id,
+    (p->>'user_id')::uuid,
+    coalesce((p->>'is_guest')::boolean, false),
+    (p->>'team')::smallint,
+    coalesce((p->>'is_recorder')::boolean, false),
+    -- recorder and guest slots are auto-confirmed
+    coalesce((p->>'is_recorder')::boolean, false) or coalesce((p->>'is_guest')::boolean, false),
+    case when coalesce((p->>'is_recorder')::boolean, false) or coalesce((p->>'is_guest')::boolean, false)
+         then now() else null end,
+    p->>'display_name'
+  from jsonb_array_elements(p_participants) p;
+
+  return v_match;
+end;
+$$;
+
+-- ── RPC: set_match_games ────────────────────────────────────────────────────
+-- Replaces all games. In pending state, changing scores invalidates all
+-- registered confirmations (the result changed).
+create or replace function public.set_match_games(
+  p_match_id uuid,
+  p_games    jsonb
+)
+returns void language plpgsql security definer as $$
+declare
+  v_match public.matches;
+begin
+  select * into v_match from public.matches where id = p_match_id;
+  if not found then raise exception 'Match not found'; end if;
+  if v_match.recorder_id != auth.uid() then raise exception 'Not your match'; end if;
+  if v_match.status not in ('draft', 'pending') then raise exception 'Match is not editable'; end if;
+
+  delete from public.match_games where match_id = p_match_id;
+  insert into public.match_games (match_id, game_no, team1_score, team2_score)
+  select p_match_id,
+         (g->>'game_no')::int,
+         (g->>'team1_score')::int,
+         (g->>'team2_score')::int
+  from jsonb_array_elements(p_games) g;
+
+  -- Result changed → everyone must re-confirm.
+  if v_match.status = 'pending' then
+    update public.match_participants
+       set confirmed = false, confirmed_at = null
+     where match_id = p_match_id and not is_recorder and not is_guest;
+  end if;
+end;
+$$;
+
+-- ── RPC: replace_match_participant ──────────────────────────────────────────
+-- Swap a slot to a different registered member or to a guest. Resets only that
+-- slot's confirmation. Cannot touch the recorder slot or a published match.
+create or replace function public.replace_match_participant(
+  p_participant_id uuid,
+  p_new_user_id    uuid default null,
+  p_guest_name     text default null
+)
+returns public.match_participants
+language plpgsql security definer as $$
+declare
+  v_part  public.match_participants;
+  v_match public.matches;
+  v_guest boolean;
+begin
+  select * into v_part from public.match_participants where id = p_participant_id;
+  if not found then raise exception 'Participant not found'; end if;
+
+  select * into v_match from public.matches where id = v_part.match_id;
+  if v_match.recorder_id != auth.uid() then raise exception 'Not your match'; end if;
+  if v_match.status not in ('draft', 'pending') then raise exception 'Match is not editable'; end if;
+  if v_part.is_recorder then raise exception 'Cannot replace the recorder slot'; end if;
+
+  v_guest := p_new_user_id is null;
+  if v_guest then
+    if coalesce(btrim(p_guest_name), '') = '' then raise exception 'Guest name required'; end if;
+  else
+    if not exists (select 1 from public.profiles where id = p_new_user_id) then
+      raise exception 'New participant is not a registered member';
+    end if;
+    if exists (
+      select 1 from public.match_participants
+      where match_id = v_part.match_id and user_id = p_new_user_id and id != p_participant_id
+    ) then raise exception 'That member is already in this match'; end if;
+  end if;
+
+  update public.match_participants
+     set user_id      = p_new_user_id,
+         is_guest     = v_guest,
+         display_name = case when v_guest then btrim(p_guest_name)
+                             else (select nickname from public.profiles where id = p_new_user_id) end,
+         confirmed    = v_guest,                         -- guest auto-confirmed; registered must re-confirm
+         confirmed_at = case when v_guest then now() else null end
+   where id = p_participant_id
+   returning * into v_part;
+
+  return v_part;
+end;
+$$;
+
+-- ── RPC: set_match_privacy ──────────────────────────────────────────────────
+-- Recorder toggles public/private. Allowed only while editable (draft/pending);
+-- a published match's visibility is locked. In pending, changing visibility is a
+-- material change to what participants agreed to, so it invalidates all
+-- registered confirmations — everyone must re-confirm (same rule as a score edit).
+create or replace function public.set_match_privacy(
+  p_match_id  uuid,
+  p_is_public boolean
+)
+returns void language plpgsql security definer as $$
+declare
+  v_match public.matches;
+begin
+  select * into v_match from public.matches where id = p_match_id;
+  if not found then raise exception 'Match not found'; end if;
+  if v_match.recorder_id != auth.uid() then raise exception 'Not your match'; end if;
+  if v_match.status not in ('draft', 'pending') then
+    raise exception 'Cannot change visibility of a % match', v_match.status;
+  end if;
+
+  -- No-op if unchanged, so we don't needlessly reset confirmations.
+  if v_match.is_public is not distinct from p_is_public then return; end if;
+
+  update public.matches set is_public = p_is_public where id = p_match_id;
+
+  -- Visibility changed → everyone must re-confirm.
+  if v_match.status = 'pending' then
+    update public.match_participants
+       set confirmed = false, confirmed_at = null
+     where match_id = p_match_id and not is_recorder and not is_guest;
+  end if;
+end;
+$$;
+
+-- ── RPC: request_match_confirmation ─────────────────────────────────────────
+-- draft → pending. Resets registered non-recorder confirmations. Requires at
+-- least one game recorded and at least one registered non-recorder participant
+-- (otherwise the match could never be published).
+create or replace function public.request_match_confirmation(p_match_id uuid)
+returns public.matches
+language plpgsql security definer as $$
+declare
+  v_match public.matches;
+begin
+  select * into v_match from public.matches where id = p_match_id;
+  if not found then raise exception 'Match not found'; end if;
+  if v_match.recorder_id != auth.uid() then raise exception 'Not your match'; end if;
+  if v_match.status not in ('draft', 'pending') then raise exception 'Cannot request confirmation'; end if;
+
+  if not exists (select 1 from public.match_games where match_id = p_match_id) then
+    raise exception 'Record at least one game first';
+  end if;
+  if not exists (
+    select 1 from public.match_participants
+    where match_id = p_match_id and not is_recorder and not is_guest
+  ) then
+    raise exception 'Need at least one registered opponent to confirm the result';
+  end if;
+
+  update public.match_participants
+     set confirmed = false, confirmed_at = null
+   where match_id = p_match_id and not is_recorder and not is_guest;
+
+  update public.matches set status = 'pending' where id = p_match_id returning * into v_match;
+
+  -- In-app station letter for each registered participant who must confirm.
+  insert into public.notifications (user_id, type, title, body, link)
+  select mp.user_id, 'match_confirm', '有对局待你确认',
+         coalesce(rec.nickname, '有人') || ' 录入了一场对局，请确认结果', '/versus'
+  from public.match_participants mp
+  left join public.profiles rec on rec.id = v_match.recorder_id
+  where mp.match_id = p_match_id and not mp.is_recorder and not mp.is_guest;
+
+  return v_match;
+end;
+$$;
+
+-- ── RPC: confirm_match ──────────────────────────────────────────────────────
+-- A registered non-recorder participant confirms. When all such participants
+-- have confirmed, the match is published.
+create or replace function public.confirm_match(p_match_id uuid)
+returns public.matches
+language plpgsql security definer as $$
+declare
+  v_match    public.matches;
+  v_pending  int;
+begin
+  perform pg_advisory_xact_lock(abs(hashtext(p_match_id::text)));
+
+  select * into v_match from public.matches where id = p_match_id;
+  if not found then raise exception 'Match not found'; end if;
+  if v_match.status != 'pending' then raise exception 'Match is not awaiting confirmation'; end if;
+
+  update public.match_participants
+     set confirmed = true, confirmed_at = now()
+   where match_id = p_match_id and user_id = auth.uid()
+     and not is_recorder and not is_guest and not confirmed;
+  if not found then raise exception 'You are not a pending confirmer for this match'; end if;
+
+  select count(*) into v_pending
+    from public.match_participants
+   where match_id = p_match_id and not is_recorder and not is_guest and not confirmed;
+
+  if v_pending = 0 then
+    update public.matches
+       set status = 'published', published_at = now()
+     where id = p_match_id
+     returning * into v_match;
+    perform public.apply_match_rating(p_match_id);
+
+    -- In-app station letter for every registered participant.
+    insert into public.notifications (user_id, type, title, body, link)
+    select mp.user_id, 'match_published', '对局已发布',
+           '你参与的一场对局已全员确认并发布', '/versus/' || p_match_id
+    from public.match_participants mp
+    where mp.match_id = p_match_id and not mp.is_guest and mp.user_id is not null;
+  else
+    select * into v_match from public.matches where id = p_match_id;
+  end if;
+
+  return v_match;
+end;
+$$;
+
+-- ── RPC: cancel_match ───────────────────────────────────────────────────────
+create or replace function public.cancel_match(p_match_id uuid)
+returns void language plpgsql security definer as $$
+declare
+  v_match public.matches;
+begin
+  select * into v_match from public.matches where id = p_match_id;
+  if not found then raise exception 'Match not found'; end if;
+  if v_match.recorder_id != auth.uid() then raise exception 'Not your match'; end if;
+  if v_match.status = 'published' then raise exception 'Cannot cancel a published match'; end if;
+  update public.matches set status = 'canceled' where id = p_match_id;
+end;
+$$;
+
+-- ── Realtime ────────────────────────────────────────────────────────────────
+alter publication supabase_realtime add table public.matches;
+alter publication supabase_realtime add table public.match_participants;
+alter publication supabase_realtime add table public.match_games;
+
+-- ── RLS ─────────────────────────────────────────────────────────────────────
+alter table public.matches             enable row level security;
+alter table public.match_participants  enable row level security;
+alter table public.match_games         enable row level security;
+
+-- A match is visible to: its recorder; any of its participants; or anyone (auth)
+-- if it is published AND public. Draft matches are visible only to the recorder.
+--
+-- This check is a SECURITY DEFINER function so it can be shared by the matches,
+-- match_participants, and match_games policies WITHOUT mutual RLS recursion
+-- (matches → match_participants → matches → …). Running as definer means the
+-- inner reads bypass RLS, breaking the cycle.
+create or replace function public.can_view_match(p_match_id uuid)
+returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.matches m
+    where m.id = p_match_id
+      and (
+        m.recorder_id = auth.uid()
+        or (m.status = 'published' and m.is_public and auth.uid() is not null)
+        or exists (
+          select 1 from public.match_participants mp
+          where mp.match_id = m.id and mp.user_id = auth.uid()
+        )
+      )
+  );
+$$;
+grant execute on function public.can_view_match(uuid) to anon, authenticated;
+
+create policy "matches_select" on public.matches
+  for select using (public.can_view_match(id));
+-- All writes go through SECURITY DEFINER RPCs; no direct table writes.
+
+-- Participants/games inherit the parent match's visibility.
+create policy "match_participants_select" on public.match_participants
+  for select using (public.can_view_match(match_id));
+
+create policy "match_games_select" on public.match_games
+  for select using (public.can_view_match(match_id));
+
+grant execute on function public.create_match               to authenticated;
+grant execute on function public.set_match_games            to authenticated;
+grant execute on function public.replace_match_participant  to authenticated;
+grant execute on function public.set_match_privacy          to authenticated;
+grant execute on function public.request_match_confirmation to authenticated;
+grant execute on function public.confirm_match              to authenticated;
+grant execute on function public.cancel_match               to authenticated;
+
+-- ============================================================
+-- 8b. 对战积分 (VERSUS RATINGS — Phase 2)
+-- ============================================================
+-- Decreasing-K ELO, settled per game at publish time. Low scores rise easily,
+-- high scores rise slowly; margin of victory and a large-gap damper both feed in.
+-- See docs/versus-design.md §8 for the algorithm and parameters.
+
+create table public.player_ratings (
+  user_id      uuid primary key references public.profiles(id) on delete cascade,
+  rating       numeric not null default 1000,
+  games_played int not null default 0,                  -- games settled (provisional gate)
+  peak_rating  numeric not null default 1000,
+  updated_at   timestamptz not null default now()
+);
+
+create table public.rating_history (
+  id            uuid primary key default gen_random_uuid(),
+  match_id      uuid not null references public.matches(id) on delete cascade,
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+  rating_before numeric not null,
+  rating_after  numeric not null,
+  delta         numeric not null,
+  created_at    timestamptz not null default now(),
+  unique (match_id, user_id)
+);
+
+create index if not exists idx_player_ratings_rank  on public.player_ratings(rating desc);
+create index if not exists idx_rating_history_user  on public.rating_history(user_id, created_at desc);
+create index if not exists idx_rating_history_match on public.rating_history(match_id);
+
+-- ── Internal: apply_match_rating ────────────────────────────────────────────
+-- Called from confirm_match's publish branch. Idempotent (skips if rating_history
+-- rows already exist for the match). Settles each game as an independent ELO
+-- update in game_no order; guests contribute a fixed anchor (R0) but never gain
+-- or lose rating. Doubles: a player's opponent rating is the opposing team average.
+create or replace function public.apply_match_rating(p_match_id uuid)
+returns void language plpgsql security definer as $$
+declare
+  c_R0       constant numeric := 1000;   -- initial / guest anchor
+  c_Kmax     constant numeric := 64;
+  c_Kmin     constant numeric := 16;
+  c_Rfloor   constant numeric := 1000;
+  c_Rceil    constant numeric := 1800;
+  c_provis   constant int     := 5;      -- games_played < 5 → forced K_max
+  c_gap0     constant numeric := 200;
+  c_gapscale constant numeric := 600;
+  c_dampmin  constant numeric := 0.25;
+  c_marref   constant numeric := 21;     -- margin reference (a full game)
+
+  v_match  public.matches;
+  v_size1  int;  v_size2 int;
+  v_sum1   numeric; v_cnt1 int;
+  v_sum2   numeric; v_cnt2 int;
+  v_r1     numeric; v_r2 numeric;
+  v_winner smallint;
+  v_m      numeric;
+  g        record;
+  p        record;
+  v_Ropp   numeric; v_S numeric; v_E numeric;
+  v_damp   numeric; v_K numeric; v_delta numeric;
+begin
+  perform pg_advisory_xact_lock(abs(hashtext('apply_match_rating:' || p_match_id::text)));
+
+  select * into v_match from public.matches where id = p_match_id;
+  if not found or v_match.status <> 'published' then return; end if;
+  if exists (select 1 from public.rating_history where match_id = p_match_id) then return; end if;
+
+  create temporary table if not exists tmp_rate (
+    user_id uuid primary key,
+    team    smallint not null,
+    rating0 numeric not null,   -- rating before this match (for history)
+    rating  numeric not null,   -- running rating
+    games   int not null
+  ) on commit drop;
+  truncate tmp_rate;
+
+  -- Seed registered (non-guest) participants with their current rating.
+  insert into tmp_rate (user_id, team, rating0, rating, games)
+  select mp.user_id, mp.team,
+         coalesce(pr.rating, c_R0), coalesce(pr.rating, c_R0),
+         coalesce(pr.games_played, 0)
+  from public.match_participants mp
+  left join public.player_ratings pr on pr.user_id = mp.user_id
+  where mp.match_id = p_match_id and mp.user_id is not null and not mp.is_guest;
+
+  if not exists (select 1 from tmp_rate) then return; end if;
+
+  select count(*) filter (where team = 1), count(*) filter (where team = 2)
+    into v_size1, v_size2
+  from public.match_participants where match_id = p_match_id;
+
+  for g in
+    select game_no, team1_score, team2_score
+    from public.match_games where match_id = p_match_id order by game_no
+  loop
+    if g.team1_score = g.team2_score then continue; end if;   -- no winner; skip
+    v_winner := case when g.team1_score > g.team2_score then 1 else 2 end;
+    -- Margin-of-victory multiplier: 21:0 weighs more than 21:19.
+    v_m := 1 + ln(1 + abs(g.team1_score - g.team2_score)) / ln(1 + c_marref);
+
+    -- Pre-game team averages (registered running ratings + guests at anchor).
+    select coalesce(sum(rating) filter (where team = 1), 0), count(*) filter (where team = 1),
+           coalesce(sum(rating) filter (where team = 2), 0), count(*) filter (where team = 2)
+      into v_sum1, v_cnt1, v_sum2, v_cnt2
+    from tmp_rate;
+    v_r1 := (v_sum1 + (v_size1 - v_cnt1) * c_R0) / v_size1;
+    v_r2 := (v_sum2 + (v_size2 - v_cnt2) * c_R0) / v_size2;
+
+    for p in select * from tmp_rate loop
+      v_Ropp := case when p.team = 1 then v_r2 else v_r1 end;
+      v_S    := case when p.team = v_winner then 1 else 0 end;
+      v_E    := 1 / (1 + power(10, (v_Ropp - p.rating) / 400));
+      -- Large-gap damper: shrink updates when ratings are far apart, so high
+      -- players aren't punished hard for the occasional loss to a beginner.
+      v_damp := greatest(c_dampmin, least(1, 1 - greatest(0, abs(p.rating - v_Ropp) - c_gap0) / c_gapscale));
+      v_K    := case when p.games < c_provis then c_Kmax
+                     else greatest(c_Kmin, least(c_Kmax,
+                          c_Kmax - (c_Kmax - c_Kmin) * (p.rating - c_Rfloor) / (c_Rceil - c_Rfloor))) end;
+      v_delta := v_K * v_m * v_damp * (v_S - v_E);
+      update tmp_rate set rating = rating + v_delta, games = games + 1 where user_id = p.user_id;
+    end loop;
+  end loop;
+
+  -- Round on persist: the ELO math (power/division) yields unbounded-scale
+  -- numerics that would otherwise compound ~90 digits per game. 2 dp is plenty.
+  insert into public.player_ratings (user_id, rating, games_played, peak_rating, updated_at)
+  select user_id, round(rating, 2), games, greatest(round(rating0, 2), round(rating, 2)), now() from tmp_rate
+  on conflict (user_id) do update
+    set rating       = excluded.rating,
+        games_played = excluded.games_played,
+        peak_rating  = greatest(public.player_ratings.peak_rating, excluded.rating),
+        updated_at   = now();
+
+  -- created_at = published_at so a chronological backfill yields correct trend order.
+  insert into public.rating_history (match_id, user_id, rating_before, rating_after, delta, created_at)
+  select p_match_id, user_id, round(rating0, 2), round(rating, 2), round(rating, 2) - round(rating0, 2),
+         coalesce(v_match.published_at, now())
+  from tmp_rate;
+end;
+$$;
+
+-- Realtime so the leaderboard updates live as matches publish.
+alter publication supabase_realtime add table public.player_ratings;
+
+alter table public.player_ratings enable row level security;
+alter table public.rating_history enable row level security;
+
+-- Leaderboard is public to logged-in users; history is yours or visible-match's.
+create policy "player_ratings_select" on public.player_ratings
+  for select using (auth.uid() is not null);
+create policy "rating_history_select" on public.rating_history
+  for select using (user_id = auth.uid() or public.can_view_match(match_id));
+-- Writes only via SECURITY DEFINER apply_match_rating (no direct table writes).
+
+-- ============================================================
+-- 8c. 站内信 (NOTIFICATIONS — Phase 2)
+-- ============================================================
+-- In-app notification center. Rows are created server-side (SECURITY DEFINER
+-- RPCs for match events; service-role API routes for follow/promotion events).
+-- A user reads and marks their own; nobody writes notifications directly.
+
+create table public.notifications (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  type       text not null,   -- follow_session | waitlist_promoted | match_confirm | match_published
+  title      text not null,
+  body       text not null default '',
+  link       text,            -- in-app path to open
+  read       boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_notifications_user   on public.notifications(user_id, created_at desc);
+create index if not exists idx_notifications_unread on public.notifications(user_id) where not read;
+
+alter publication supabase_realtime add table public.notifications;
+
+alter table public.notifications enable row level security;
+create policy "notifications_select_own" on public.notifications
+  for select using (user_id = auth.uid());
+create policy "notifications_update_own" on public.notifications
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- Inserts only via service role / SECURITY DEFINER RPCs.
